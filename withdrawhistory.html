@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>ORB-X PH — Withdraw History</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/dashboard.css">
+<style>
+  .wh-card{
+    background:var(--card); border:1px solid var(--border); border-radius:16px;
+    padding:16px 18px; margin-bottom:12px; transition:border-color .2s;
+  }
+  .wh-card:hover{ border-color:rgba(135,160,255,0.35); }
+  .wh-card.paid{ border-color:rgba(124,255,178,0.3); }
+  .wh-card.approved{ border-color:rgba(77,166,255,0.3); }
+  .wh-card.rejected, .wh-card.flagged{ border-color:rgba(255,90,90,0.25); }
+  .wh-top{ display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:8px; }
+  .wh-amount{ font-weight:800; font-size:20px; color:var(--text); font-family:'Orbitron',sans-serif; }
+  .wh-meta{ font-size:12px; color:var(--muted); margin-bottom:8px; line-height:1.6; }
+  .wh-meta strong{ color:var(--text); }
+  .wh-status{
+    display:inline-block; font-size:9.5px; font-weight:800; letter-spacing:0.5px;
+    text-transform:uppercase; padding:3px 10px; border-radius:10px; margin-bottom:8px;
+  }
+  .wh-status.pending  { color:var(--gold);  background:rgba(255,200,87,0.12);  border:1px solid rgba(255,200,87,0.35); }
+  .wh-status.approved { color:var(--blue); background:rgba(77,166,255,0.1); border:1px solid rgba(77,166,255,0.3); }
+  .wh-status.paid {
+    color:#fff;
+    background:linear-gradient(90deg,rgba(124,255,178,0.25),rgba(77,166,255,0.2));
+    border:1px solid rgba(124,255,178,0.5);
+  }
+  .wh-status.rejected, .wh-status.flagged { color:#ff8080; background:rgba(255,90,90,0.1); border:1px solid rgba(255,90,90,0.3); }
+  .wh-feedback{
+    display:flex; align-items:flex-start; gap:10px;
+    background:rgba(255,90,90,0.08); border:1px solid rgba(255,90,90,0.25);
+    border-radius:10px; padding:12px 14px; margin-top:8px;
+  }
+  .wh-feedback-label{ font-size:11px; font-weight:800; color:#ff8080; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; }
+  .wh-feedback-msg{ font-size:12.5px; color:var(--text); line-height:1.5; }
+  .empty-state{ text-align:center; padding:50px 20px; color:var(--muted); font-size:13px; }
+</style>
+</head>
+<body class="dashboard-body">
+
+  <div class="stars"></div>
+  <div class="stars2"></div>
+
+  <header class="dash-header">
+    <div class="dash-brand">
+      <a href="welcome.html" class="icon-btn" title="Back">&larr;</a>
+      <div class="dash-logo-wrap">
+        <img src="assets/logo.png" alt="ORB-X PH" class="dash-logo-img">
+      </div>
+      <div class="dash-wordmark">ORB-<span>X</span> <small>PH</small></div>
+    </div>
+    <div class="dash-user">
+      <button id="themeToggle" class="icon-btn"><span id="themeIcon">🌙</span></button>
+      <span class="hide-mobile">Hi, <strong id="dashUsername">—</strong></span>
+    </div>
+  </header>
+
+  <main class="dash-main">
+    <div class="dash-intro">
+      <h1>Withdraw History</h1>
+      <p>Lahat ng iyong mga withdrawal request at ang kasalukuyang status nito.</p>
+    </div>
+    <div id="withdrawHistoryList"><p class="empty-state">Naglo-load...</p></div>
+  </main>
+
+<script>
+  const currentUser = localStorage.getItem('orbx_user');
+  if(!currentUser) window.location.href = 'index.html';
+  document.getElementById('dashUsername').textContent = currentUser || '';
+
+  const themeToggle = document.getElementById('themeToggle');
+  const themeIcon   = document.getElementById('themeIcon');
+  function applyTheme(t){
+    if(t==='light'){ document.body.setAttribute('data-theme','light'); themeIcon.textContent='☀️'; }
+    else{ document.body.removeAttribute('data-theme'); themeIcon.textContent='🌙'; }
+    localStorage.setItem('orbx_theme', t);
+  }
+  applyTheme(localStorage.getItem('orbx_theme') || 'dark');
+  themeToggle.addEventListener('click', () => applyTheme(document.body.getAttribute('data-theme')==='light'?'dark':'light'));
+
+  function timeAgo(iso){
+    if(!iso) return '—';
+    const d = Math.floor((Date.now()-new Date(iso).getTime())/1000);
+    if(d<60) return 'kanina lang';
+    if(d<3600) return Math.floor(d/60)+'m ago';
+    if(d<86400) return Math.floor(d/3600)+'h ago';
+    return Math.floor(d/86400)+'d ago';
+  }
+
+  const STATUS_LABELS = {
+    pending: 'Pending',
+    approved: 'Approved',
+    paid: 'Paid',
+    rejected: 'Rejected',
+    flagged: 'Flagged',
+  };
+
+  async function loadWithdrawHistory(){
+    const el = document.getElementById('withdrawHistoryList');
+    try{
+      const list = await fetch('/api/withdraw/mine/'+encodeURIComponent(currentUser)).then(r=>r.json());
+      if(!list.length){ el.innerHTML = '<p class="empty-state">Wala ka pang withdrawal request.</p>'; return; }
+
+      el.innerHTML = list.map(w => `
+        <div class="wh-card ${w.status}">
+          <div class="wh-top">
+            <span class="wh-amount">&#8369;${Number(w.amount).toLocaleString()}</span>
+            <span class="wh-status ${w.status}">${STATUS_LABELS[w.status] || w.status}</span>
+          </div>
+          <div class="wh-meta">
+            <strong>${w.method}</strong> &middot; ${w.accountName} &middot; <strong>${w.accountNumber}</strong><br>
+            Hiniling: ${timeAgo(w.createdAt)}
+            ${w.processedAt ? `<br>Naproseso: ${timeAgo(w.processedAt)}` : ''}
+            ${w.notes ? `<br>Note mo: ${w.notes}` : ''}
+          </div>
+          ${w.feedback ? `
+            <div class="wh-feedback">
+              <div>
+                <div class="wh-feedback-label">Mensahe mula sa Admin</div>
+                <div class="wh-feedback-msg">${w.feedback}</div>
+              </div>
+            </div>` : ''}
+        </div>
+      `).join('');
+    } catch(e){
+      el.innerHTML = '<p class="empty-state">Hindi makonekta sa server.</p>';
+    }
+  }
+
+  loadWithdrawHistory();
+  setInterval(loadWithdrawHistory, 20000);
+</script>
+</body>
+</html>

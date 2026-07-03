@@ -1,0 +1,2596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>ORB-X PH — Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/dashboard.css">
+<style>
+
+/* ═══════════════════════════════════════
+   ALWAYS-ON BACKGROUND ANIMATION
+   ═══════════════════════════════════════ */
+.stars, .stars2 {
+  opacity: 1 !important;
+  pointer-events: none;
+}
+.orbit-field {
+  opacity: 1 !important;
+  pointer-events: none;
+}
+[data-theme="light"] .stars,
+[data-theme="light"] .stars2,
+[data-theme="light"] .orbit-field {
+  opacity: 0.3 !important;
+}
+
+/* ═══════════════════════════════════════
+   SUPER WALLET BOX
+   ═══════════════════════════════════════ */
+.super-wallet {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  margin-bottom: clamp(16px,3.5vw,28px);
+  overflow: hidden;
+  transition: border-color .25s;
+  position: relative;
+}
+.super-wallet::before {
+  content:''; position:absolute; inset:0; pointer-events:none;
+  background: linear-gradient(135deg,rgba(77,166,255,0.05) 0%,rgba(155,107,255,0.03) 50%,rgba(255,200,87,0.03) 100%);
+}
+.super-wallet:hover { border-color: rgba(77,166,255,0.28); }
+.sw-top { padding: 18px 20px 16px; }
+.sw-header { display:flex; align-items:center; justify-content:space-between; margin-bottom: 16px; }
+.sw-header-left { display:flex; align-items:center; gap:9px; }
+.wallet-label { font-family:'Orbitron',sans-serif; font-weight:800; font-size:11.5px; letter-spacing:1.8px; text-transform:uppercase; color:var(--muted); }
+.wallet-status-dot { width:7px; height:7px; border-radius:50%; background:#7CFFB2; box-shadow:0 0 8px rgba(124,255,178,0.6); animation: walletPulse 2.4s ease-in-out infinite; }
+@keyframes walletPulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.55;transform:scale(.85)} }
+.wallet-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 0; }
+.wallet-stat { display:flex; align-items:center; gap:12px; background:rgba(0,0,0,0.18); border:1px solid var(--border); border-radius:14px; padding:14px 16px; }
+.wallet-stat-icon { width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0; }
+.wallet-stat-icon svg { width:16px;height:16px; }
+.wallet-stat-icon--income  { background:rgba(124,255,178,0.1); border:1px solid rgba(124,255,178,0.25); color:#7CFFB2; }
+.wallet-stat-icon--withdraw{ background:rgba(255,200,87,0.1);  border:1px solid rgba(255,200,87,0.25);  color:var(--gold); }
+.wallet-stat-icon--daily   { background:rgba(77,166,255,0.1);  border:1px solid rgba(77,166,255,0.25);  color:var(--blue); }
+.wallet-stat-icon--task    { background:rgba(155,107,255,0.1); border:1px solid rgba(155,107,255,0.25); color:#c8b0ff; }
+.wallet-stat-info { display:flex;flex-direction:column;gap:3px;min-width:0; }
+.wallet-stat-label { font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);white-space:nowrap; }
+.wallet-stat-value { font-family:'Orbitron',sans-serif;font-weight:800;font-size:clamp(14px,3vw,20px);color:#7CFFB2;letter-spacing:.5px;line-height:1; }
+.wallet-stat-value--withdrawn { color:var(--gold); }
+.wallet-stat-value--daily    { color:var(--blue); }
+.wallet-stat-value--task     { color:#c8b0ff; }
+.sw-orders { padding: 12px 20px; border-top: 1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+.sw-orders-left { display:flex;align-items:center;gap:7px;flex-wrap:wrap; }
+.sw-orders-heading { display:flex;align-items:center;gap:6px; font-size:9.5px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted); white-space:nowrap; }
+.sw-orders-heading svg { color:var(--blue); }
+.osb-pill { display:inline-flex;align-items:center;gap:5px; font-size:11px;font-weight:700;padding:4px 11px;border-radius:20px;white-space:nowrap; }
+.osb-pill--approved { color:#7CFFB2;background:rgba(124,255,178,0.1);border:1px solid rgba(124,255,178,0.3); }
+.osb-pill--flagged  { color:#ff8080;background:rgba(255,90,90,0.1);  border:1px solid rgba(255,90,90,0.3); }
+.osb-pill--pending  { color:var(--gold);background:rgba(255,200,87,0.1);border:1px solid rgba(255,200,87,0.3); }
+.osb-pill .si { width:10px;height:10px; }
+.osb-view-btn { display:inline-flex;align-items:center;gap:5px;flex-shrink:0; padding:6px 13px;border-radius:9px;border:1px solid rgba(77,166,255,0.35); background:rgba(77,166,255,0.07);color:var(--blue); font-family:'Inter',sans-serif;font-size:11px;font-weight:700; cursor:pointer;white-space:nowrap;transition:background .2s,transform .15s; }
+.osb-view-btn:hover { background:rgba(77,166,255,0.16);transform:translateY(-1px); }
+.osb-view-btn svg { transition:transform .2s; }
+.osb-view-btn:hover svg { transform:translateX(2px); }
+.sw-bottom { padding: 14px 20px; border-top: 1px solid var(--border); display:flex; flex-direction:column; gap:0; }
+.wallet-withdraw-btn { display:inline-flex;align-items:center;justify-content:center;gap:8px; width:100%;padding:11px 22px;border-radius:11px; border:1px solid rgba(255,200,87,0.45);background:rgba(255,200,87,0.08); color:var(--gold);font-family:'Inter',sans-serif;font-size:13px;font-weight:700; cursor:pointer;transition:background .2s,transform .15s,box-shadow .15s; }
+.wallet-withdraw-btn:hover { background:rgba(255,200,87,0.16);transform:translateY(-1px); box-shadow:0 8px 22px -8px rgba(255,200,87,0.3); }
+.wallet-withdraw-btn:disabled { opacity:.5; cursor:not-allowed; transform:none; box-shadow:none; }
+.pd-image-wrap{ width:100%; border-radius:14px; overflow:hidden; margin-bottom:16px; background:#0a0e22; }
+.pd-image-wrap img{ width:100%; display:block; object-fit:contain; max-height:340px; background:#0a0e22; }
+.pd-tier{ font-family:'Orbitron',sans-serif; font-weight:800; font-size:16px; color:var(--blue); margin-bottom:4px; }
+.pd-price{ font-size:26px; font-weight:800; color:var(--text); margin-bottom:14px; }
+.pd-rate-box{ display:flex; align-items:center; gap:12px; background:rgba(124,255,178,0.08); border:1px solid rgba(124,255,178,0.3); border-radius:12px; padding:12px 16px; margin-bottom:14px; }
+.pd-rate-icon{ width:36px;height:36px;border-radius:10px;background:rgba(124,255,178,0.12);border:1px solid rgba(124,255,178,0.3);display:flex;align-items:center;justify-content:center;color:#7CFFB2;flex-shrink:0; }
+.pd-rate-label{ font-size:10px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:var(--muted); }
+.pd-rate-val{ font-family:'Orbitron',sans-serif; font-weight:800; font-size:18px; color:#7CFFB2; }
+.pd-desc{ font-size:13px; color:var(--muted); line-height:1.6; margin-bottom:18px; }
+.pd-order-btn{ width:100%; padding:12px; border:none; border-radius:10px; background:linear-gradient(90deg,var(--blue),var(--violet)); color:#fff; font-weight:700; font-size:13.5px; cursor:pointer; }
+/* ── Referral Box ── */
+.referral-box {
+  background:var(--card); border:1px solid var(--border); border-radius:20px;
+  padding:18px 20px; margin-bottom:clamp(16px,3.5vw,28px);
+  position:relative; overflow:hidden; transition:border-color .25s;
+}
+.referral-box::before {
+  content:''; position:absolute; inset:0; pointer-events:none;
+  background:linear-gradient(135deg,rgba(155,107,255,0.07),rgba(77,166,255,0.04));
+}
+.referral-box:hover { border-color:rgba(155,107,255,0.35); }
+.referral-header { display:flex; align-items:center; gap:9px; margin-bottom:14px; }
+.referral-label {
+  background: linear-gradient(90deg, #c8b0ff, #4da6ff, #c8b0ff);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: refLabelShine 3.5s linear infinite;
+}
+@keyframes refLabelShine {
+  0%   { background-position: 0% center; }
+  100% { background-position: 200% center; }
+}
+.referral-status-dot { width:7px; height:7px; border-radius:50%; background:#c8b0ff; box-shadow:0 0 7px rgba(200,176,255,0.6); animation:walletPulse 2.4s ease-in-out infinite; }
+.referral-code-wrap { display:flex; align-items:center; gap:10px; background:rgba(0,0,0,0.2); border:1px solid rgba(155,107,255,0.3); border-radius:12px; padding:12px 16px; margin-bottom:12px; }
+.referral-code-val { font-family:'Orbitron',sans-serif; font-weight:800; font-size:clamp(13px,3.5vw,17px); letter-spacing:2px; color:#c8b0ff; flex:1; }
+.copy-code-btn { padding:7px 14px; border-radius:9px; border:1px solid rgba(155,107,255,0.45); background:rgba(155,107,255,0.1); color:#c8b0ff; font-size:11.5px; font-weight:800; cursor:pointer; transition:background .2s,transform .15s; white-space:nowrap; font-family:'Inter',sans-serif; }
+.copy-code-btn:hover { background:rgba(155,107,255,0.22); transform:translateY(-1px); }
+
+/* ══════════════════════════════════════════
+   RANK BADGE — Orbit-themed per rank
+   ══════════════════════════════════════════ */
+.ref-rank-row {
+  display: flex; align-items: center;
+  gap: 12px; margin-bottom: 14px;
+}
+
+/* Base badge shell */
+.ref-rank-badge {
+  position: relative; overflow: hidden;
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 7px 14px 7px 10px; border-radius: 40px;
+  font-family: 'Orbitron', sans-serif; font-weight: 800;
+  font-size: 11px; letter-spacing: 1.4px; white-space: nowrap;
+  flex-shrink: 0; z-index: 0;
+}
+
+/* Orbit ring inside badge */
+.ref-rank-badge::before {
+  content: '';
+  position: absolute;
+  width: 60px; height: 60px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  opacity: 0.12;
+  left: -18px; top: 50%;
+  transform: translateY(-50%);
+  animation: orbitRingSpin 6s linear infinite;
+}
+/* Shimmer sweep */
+.ref-rank-badge::after {
+  content: '';
+  position: absolute; top: 0; left: -120%; width: 55%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.22), transparent);
+  animation: badgeShimmer 3.2s ease-in-out infinite;
+  z-index: 1;
+}
+@keyframes badgeShimmer {
+  0%   { left: -120%; }
+  55%  { left: 160%; }
+  100% { left: 160%; }
+}
+@keyframes orbitRingSpin {
+  from { transform: translateY(-50%) rotate(0deg); }
+  to   { transform: translateY(-50%) rotate(360deg); }
+}
+
+/* Orbit dot on ring */
+.ref-rank-orbit-dot {
+  position: absolute;
+  width: 5px; height: 5px; border-radius: 50%;
+  left: -3px; top: 50%;
+  transform-origin: 33px 0;
+  animation: orbitDotSpin 3s linear infinite;
+  z-index: 2; pointer-events: none;
+}
+@keyframes orbitDotSpin {
+  from { transform: translateY(-50%) rotate(0deg) translateX(30px); }
+  to   { transform: translateY(-50%) rotate(360deg) translateX(30px); }
+}
+
+.ref-rank-icon { position:relative; z-index:3; display:flex; align-items:center; }
+.ref-rank-name-text { position:relative; z-index:3; }
+
+/* ── MEMBER — blue-slate orbit ── */
+.ref-rank-badge--member {
+  color: #b8c8ff;
+  background: linear-gradient(135deg, rgba(40,55,120,0.7), rgba(20,30,80,0.85));
+  border: 1px solid rgba(100,130,220,0.5);
+  box-shadow: 0 0 14px rgba(77,110,255,0.2), inset 0 1px 0 rgba(180,200,255,0.1);
+  animation: memberOrbit 4s ease-in-out infinite;
+}
+@keyframes memberOrbit {
+  0%,100% { box-shadow: 0 0 14px rgba(77,110,255,0.2), inset 0 1px 0 rgba(180,200,255,0.1); }
+  50%      { box-shadow: 0 0 24px rgba(77,110,255,0.45), inset 0 1px 0 rgba(180,200,255,0.18); }
+}
+.ref-rank-badge--member .ref-rank-orbit-dot { background: #7aaeff; box-shadow: 0 0 6px rgba(120,170,255,0.9); }
+
+/* ── PREMIUM — violet orbit ── */
+.ref-rank-badge--premium {
+  color: #e0ccff;
+  background: linear-gradient(135deg, rgba(100,40,200,0.6), rgba(60,20,140,0.8));
+  border: 1px solid rgba(180,130,255,0.55);
+  box-shadow: 0 0 20px rgba(155,107,255,0.4), inset 0 1px 0 rgba(220,190,255,0.12);
+  animation: premiumOrbit 3s ease-in-out infinite;
+}
+@keyframes premiumOrbit {
+  0%,100% { box-shadow: 0 0 20px rgba(155,107,255,0.4), inset 0 1px 0 rgba(220,190,255,0.12); }
+  50%      { box-shadow: 0 0 36px rgba(155,107,255,0.7), inset 0 1px 0 rgba(220,190,255,0.2); }
+}
+.ref-rank-badge--premium .ref-rank-orbit-dot { background: #c8b0ff; box-shadow: 0 0 7px rgba(200,176,255,1); }
+
+/* ── VIP — gold orbit ── */
+.ref-rank-badge--vip {
+  color: #ffe49a;
+  background: linear-gradient(135deg, rgba(160,100,0,0.65), rgba(90,55,0,0.82));
+  border: 1px solid rgba(255,200,87,0.6);
+  box-shadow: 0 0 22px rgba(255,200,87,0.35), inset 0 1px 0 rgba(255,230,120,0.15);
+  animation: vipOrbit 2.8s ease-in-out infinite;
+}
+@keyframes vipOrbit {
+  0%,100% { box-shadow: 0 0 22px rgba(255,200,87,0.35), inset 0 1px 0 rgba(255,230,120,0.15); }
+  50%      { box-shadow: 0 0 40px rgba(255,200,87,0.65), inset 0 1px 0 rgba(255,230,120,0.25); }
+}
+.ref-rank-badge--vip .ref-rank-orbit-dot { background: #ffd966; box-shadow: 0 0 8px rgba(255,210,80,1); }
+
+/* ── SVIP — plasma orbit (animated gradient) ── */
+.ref-rank-badge--svip {
+  color: #fff;
+  background: linear-gradient(270deg, rgba(255,78,0,0.75), rgba(255,200,87,0.7), rgba(155,107,255,0.65), rgba(77,166,255,0.7), rgba(255,78,0,0.75));
+  background-size: 350% 100%;
+  border: 1px solid rgba(255,180,60,0.65);
+  box-shadow: 0 0 30px rgba(255,120,0,0.5), 0 0 60px rgba(155,107,255,0.2), inset 0 1px 0 rgba(255,255,255,0.18);
+  animation: svipPlasma 2.4s linear infinite;
+}
+@keyframes svipPlasma {
+  0%   { background-position: 0% 50%; box-shadow: 0 0 30px rgba(255,120,0,0.5), 0 0 60px rgba(155,107,255,0.2), inset 0 1px 0 rgba(255,255,255,0.18); }
+  50%  { background-position: 100% 50%; box-shadow: 0 0 44px rgba(155,107,255,0.6), 0 0 70px rgba(77,166,255,0.25), inset 0 1px 0 rgba(255,255,255,0.22); }
+  100% { background-position: 0% 50%; box-shadow: 0 0 30px rgba(255,120,0,0.5), 0 0 60px rgba(155,107,255,0.2), inset 0 1px 0 rgba(255,255,255,0.18); }
+}
+.ref-rank-badge--svip .ref-rank-orbit-dot {
+  background: #fff;
+  box-shadow: 0 0 10px rgba(255,255,255,1), 0 0 20px rgba(255,150,50,0.8);
+  animation: orbitDotSpin 1.8s linear infinite;
+}
+
+/* ══════════════════════════════════════════
+   ORBIT PROGRESS TRACK
+   ══════════════════════════════════════════ */
+.ref-rank-progress-wrap { flex: 1; min-width: 0; }
+.ref-rank-progress-label {
+  font-size: 9.5px; color: var(--muted); font-weight: 700;
+  margin-bottom: 7px; display: flex; justify-content: space-between;
+}
+
+/* Orbit track — deep space tube */
+.ref-rank-progress-track {
+  position: relative; height: 12px; border-radius: 12px;
+  background: linear-gradient(90deg, rgba(10,15,40,0.9), rgba(20,25,60,0.8));
+  border: 1px solid rgba(77,110,255,0.18);
+  box-shadow: inset 0 2px 6px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03);
+  overflow: visible;
+}
+
+/* Dotted star field inside track */
+.ref-rank-progress-track::before {
+  content: '';
+  position: absolute; inset: 0; border-radius: 12px;
+  background-image:
+    radial-gradient(circle, rgba(255,255,255,0.6) 0.5px, transparent 0.5px),
+    radial-gradient(circle, rgba(255,255,255,0.35) 0.5px, transparent 0.5px);
+  background-size: 18px 6px, 11px 8px;
+  background-position: 3px 3px, 8px 5px;
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+/* Energy beam fill */
+.ref-rank-progress-fill {
+  height: 100%; border-radius: 12px;
+  transition: width 1s cubic-bezier(.4,0,.2,1);
+  position: relative; overflow: hidden;
+}
+.ref-rank-progress-fill--member {
+  background: linear-gradient(90deg, rgba(30,50,140,0.8), rgba(77,120,255,0.95), rgba(120,170,255,1));
+  box-shadow: 0 0 10px rgba(77,120,255,0.6), 0 0 24px rgba(77,120,255,0.3);
+}
+.ref-rank-progress-fill--premium {
+  background: linear-gradient(90deg, rgba(80,20,180,0.8), #9b6bff, #c8b0ff);
+  box-shadow: 0 0 12px rgba(155,107,255,0.7), 0 0 28px rgba(155,107,255,0.35);
+}
+.ref-rank-progress-fill--vip {
+  background: linear-gradient(90deg, rgba(140,80,0,0.8), #ffaa00, #ffd966);
+  box-shadow: 0 0 12px rgba(255,180,0,0.7), 0 0 28px rgba(255,200,87,0.35);
+}
+.ref-rank-progress-fill--svip {
+  background: linear-gradient(90deg, #ff4e00, #ff9800, #ffc857, #c8b0ff, #4da6ff);
+  background-size: 250% 100%;
+  box-shadow: 0 0 16px rgba(255,120,0,0.7), 0 0 32px rgba(155,107,255,0.4);
+  animation: svipBeam 2s linear infinite;
+}
+@keyframes svipBeam {
+  0%   { background-position: 0% 50%; }
+  100% { background-position: 100% 50%; }
+}
+
+/* Pulse glow sweep on fill */
+.ref-rank-progress-fill::before {
+  content: '';
+  position: absolute; inset: 0; border-radius: 12px;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.35) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: orbitBeamSweep 2s linear infinite;
+}
+@keyframes orbitBeamSweep {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Top edge highlight — "tube rim" */
+.ref-rank-progress-fill::after {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0;
+  height: 3px; border-radius: 12px 12px 0 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent);
+  opacity: 0.6;
+}
+
+/* ══════════════════════════════════════════
+   ROCKET — horizontal, pointing right
+   ══════════════════════════════════════════ */
+.ref-rank-rocket {
+  position: absolute;
+  top: 50%;
+  right: -14px;
+  transform: translateY(-50%);
+  width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  filter: drop-shadow(0 0 6px rgba(120,180,255,0.9)) drop-shadow(0 0 12px rgba(77,166,255,0.5));
+  animation: rocketFloat 1.4s ease-in-out infinite alternate;
+  transition: right 1s cubic-bezier(.4,0,.2,1);
+  pointer-events: none;
+  z-index: 10;
+}
+@keyframes rocketFloat {
+  from { transform: translateY(-56%); filter: drop-shadow(0 0 6px rgba(120,180,255,0.9)) drop-shadow(0 0 12px rgba(77,166,255,0.5)); }
+  to   { transform: translateY(-44%); filter: drop-shadow(0 0 10px rgba(180,220,255,1)) drop-shadow(0 0 20px rgba(77,166,255,0.8)); }
+}
+.ref-rank-rocket::after { display: none; }
+
+/* ── Orbit trail behind rocket ── */
+.ref-rank-flame {
+  position: absolute;
+  /* sits left of the rocket tip */
+  right: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px; height: 12px;
+  pointer-events: none;
+  z-index: 9;
+  transition: right 1s cubic-bezier(.4,0,.2,1);
+  overflow: visible;
+}
+/* No flicker — orbit trail is steady energy stream */
+
+/* Compact Stats */
+.referral-compact-stats { display:flex; align-items:center; background:rgba(0,0,0,0.15); border:1px solid var(--border); border-radius:12px; overflow:hidden; margin-bottom:12px; }
+.rcs-item { flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:10px 8px; }
+.rcs-divider { width:1px; background:var(--border); align-self:stretch; }
+.rcs-label { font-size:9px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:var(--muted); white-space:nowrap; }
+.rcs-val { font-family:'Orbitron',sans-serif; font-weight:800; font-size:clamp(11px,2.5vw,13px); line-height:1; }
+.rcs-val--gold   { color:var(--gold); }
+.rcs-val--purple { color:#c8b0ff; }
+.rcs-val--blue   { color:var(--blue); }
+
+/* Expand / View All Button */
+.ref-expand-btn {
+  width:100%; display:flex; align-items:center; justify-content:center; gap:7px;
+  padding:9px; border-radius:10px;
+  border:1px solid rgba(155,107,255,0.3); background:rgba(155,107,255,0.06);
+  color:#c8b0ff; font-family:'Inter',sans-serif; font-size:12px; font-weight:700;
+  cursor:pointer; transition:background .2s,transform .15s;
+}
+.ref-expand-btn:hover { background:rgba(155,107,255,0.14); transform:translateY(-1px); }
+.ref-expand-btn svg { transition:transform .3s; }
+.ref-expand-btn.expanded svg { transform:rotate(180deg); }
+
+/* Expanded Panel */
+.referral-expanded { max-height:0; overflow:hidden; transition:max-height .45s cubic-bezier(.4,0,.2,1), opacity .3s; opacity:0; }
+.referral-expanded.open { max-height:1400px; opacity:1; }
+
+/* Section title */
+.ref-section-title { display:flex; align-items:center; gap:8px; font-size:9.5px; font-weight:800; letter-spacing:1.2px; text-transform:uppercase; color:var(--muted); padding:14px 0 8px; border-bottom:1px solid var(--border); margin-bottom:10px; }
+
+/* Commission Levels */
+.ref-levels-title { font-size:9.5px; font-weight:800; letter-spacing:1.2px; text-transform:uppercase; color:var(--muted); padding:14px 0 10px; border-bottom:1px solid var(--border); margin-bottom:12px; }
+.ref-levels-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:14px; }
+.ref-level-card { display:flex; flex-direction:column; align-items:center; gap:5px; padding:12px 8px; border-radius:13px; border:1px solid var(--border); text-align:center; transition:border-color .2s,transform .2s; }
+.ref-level-card:hover { transform:translateY(-2px); }
+.ref-level-card--1 { background:rgba(124,255,178,0.05); border-color:rgba(124,255,178,0.2); }
+.ref-level-card--2 { background:rgba(77,166,255,0.05);  border-color:rgba(77,166,255,0.2); }
+.ref-level-card--3 { background:rgba(255,200,87,0.05);  border-color:rgba(255,200,87,0.2); }
+.ref-level-badge { font-size:9px; font-weight:800; letter-spacing:1px; padding:2px 8px; border-radius:6px; }
+.ref-level-card--1 .ref-level-badge { color:#7CFFB2; background:rgba(124,255,178,0.15); }
+.ref-level-card--2 .ref-level-badge { color:var(--blue); background:rgba(77,166,255,0.15); }
+.ref-level-card--3 .ref-level-badge { color:var(--gold); background:rgba(255,200,87,0.15); }
+.ref-level-pct { font-family:'Orbitron',sans-serif; font-weight:800; font-size:20px; }
+.ref-level-card--1 .ref-level-pct { color:#7CFFB2; }
+.ref-level-card--2 .ref-level-pct { color:var(--blue); }
+.ref-level-card--3 .ref-level-pct { color:var(--gold); }
+.ref-level-desc { font-size:9.5px; color:var(--muted); line-height:1.4; }
+
+/* Earnings Breakdown */
+.ref-earnings-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+.ref-earn-card { background:rgba(0,0,0,0.15); border:1px solid var(--border); border-radius:11px; padding:10px 8px; text-align:center; }
+.ref-earn-label { font-size:9.5px; font-weight:700; color:var(--muted); margin-bottom:5px; }
+.ref-earn-val { font-family:'Orbitron',sans-serif; font-weight:800; font-size:13px; }
+.ref-earn-val--1 { color:#7CFFB2; }
+.ref-earn-val--2 { color:var(--blue); }
+.ref-earn-val--3 { color:var(--gold); }
+
+/* Team List */
+.ref-team-count-badge { font-size:9px; font-weight:800; background:rgba(155,107,255,0.2); color:#c8b0ff; border:1px solid rgba(155,107,255,0.3); border-radius:8px; padding:1px 7px; font-family:'Inter',sans-serif; }
+.ref-team-item { display:flex; align-items:center; justify-content:space-between; padding:9px 12px; border-radius:11px; border:1px solid var(--border); background:rgba(0,0,0,0.12); margin-bottom:7px; gap:10px; }
+.ref-team-item-left { display:flex; align-items:center; gap:10px; min-width:0; }
+.ref-team-avatar { width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:'Orbitron',sans-serif; font-weight:800; font-size:11px; flex-shrink:0; }
+.ref-team-avatar--l1 { background:rgba(124,255,178,0.15); color:#7CFFB2; border:1px solid rgba(124,255,178,0.3); }
+.ref-team-avatar--l2 { background:rgba(77,166,255,0.15);  color:var(--blue); border:1px solid rgba(77,166,255,0.3); }
+.ref-team-avatar--l3 { background:rgba(255,200,87,0.15);  color:var(--gold); border:1px solid rgba(255,200,87,0.3); }
+.ref-team-info { display:flex; flex-direction:column; gap:2px; min-width:0; }
+.ref-team-username { font-size:12.5px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ref-team-meta { font-size:10px; color:var(--muted); }
+.ref-team-level-tag { font-size:8.5px; font-weight:800; letter-spacing:.8px; padding:2px 7px; border-radius:6px; white-space:nowrap; }
+.ref-team-level-tag--l1 { color:#7CFFB2; background:rgba(124,255,178,0.12); border:1px solid rgba(124,255,178,0.25); }
+.ref-team-level-tag--l2 { color:var(--blue); background:rgba(77,166,255,0.12); border:1px solid rgba(77,166,255,0.25); }
+.ref-team-level-tag--l3 { color:var(--gold); background:rgba(255,200,87,0.12); border:1px solid rgba(255,200,87,0.25); }
+.ref-team-reward { font-family:'Orbitron',sans-serif; font-weight:800; font-size:12px; white-space:nowrap; }
+.ref-team-reward--l1 { color:#7CFFB2; }
+.ref-team-reward--l2 { color:var(--blue); }
+.ref-team-reward--l3 { color:var(--gold); }
+
+/* Empty State */
+.ref-empty-state { display:flex; flex-direction:column; align-items:center; gap:8px; padding:22px 16px; text-align:center; color:var(--muted); }
+.ref-empty-text { font-size:13px; font-weight:600; }
+.ref-empty-sub  { font-size:11.5px; opacity:.7; }
+
+/* ── Withdraw form ── */
+.wd-form-group { margin-bottom: 13px; }
+.wd-label { display:block; font-size:11px; font-weight:700; letter-spacing:.5px; color:var(--muted); margin-bottom:6px; }
+.wd-input { width:100%; background:rgba(0,0,0,0.2); border:1px solid var(--border); border-radius:10px; padding:11px 13px; color:var(--text); font-family:'Inter',sans-serif; font-size:13px; transition:border-color .2s; resize:vertical; }
+.wd-input:focus { outline:none; border-color:rgba(255,200,87,0.5); }
+.wd-hint { font-size:11px; color:var(--muted); margin-top:6px; }
+.wd-hint--error { color:#ff8080; }
+
+/* ── Customer Service ── */
+.cs-contact-list { display:flex; flex-direction:column; gap:10px; margin-bottom:14px; }
+.cs-contact-item { display:flex; align-items:center; gap:12px; background:rgba(0,0,0,0.18); border:1px solid var(--border); border-radius:14px; padding:12px 14px; text-decoration:none; transition:border-color .2s,transform .15s; }
+.cs-contact-item:hover { border-color:rgba(77,166,255,0.35); transform:translateY(-1px); }
+.cs-contact-icon { width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0; background:rgba(77,166,255,0.1); border:1px solid rgba(77,166,255,0.25); color:var(--blue); }
+.cs-contact-icon svg { width:15px;height:15px; }
+.cs-contact-info { display:flex; flex-direction:column; gap:2px; }
+.cs-contact-label { font-size:10px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:var(--muted); }
+.cs-contact-value { font-size:13px; font-weight:600; color:var(--text); }
+.cs-admin-note { display:flex; gap:8px; align-items:flex-start; font-size:11.5px; color:var(--muted); background:rgba(0,0,0,0.15); border:1px solid var(--border); border-radius:12px; padding:10px 12px; }
+
+@keyframes slideUp {
+  from { transform: translateX(-50%) translateY(20px); opacity:0; }
+  to   { transform: translateX(-50%) translateY(0);    opacity:1; }
+}
+
+@media(max-width:480px){
+  .wallet-stat { padding:12px 13px;gap:9px; }
+  .wallet-stat-icon { width:30px;height:30px;border-radius:8px; }
+  .wallet-stat-icon svg { width:13px;height:13px; }
+  .sw-top,.sw-bottom { padding-left:15px;padding-right:15px; }
+  .sw-orders { padding:11px 15px; }
+  .wallet-stat-value { font-size:clamp(13px,4vw,18px); }
+}
+
+/* ══════════════════════════════════════════
+   RANK DETAILS BOTTOM SHEET MODAL
+   ══════════════════════════════════════════ */
+.rank-modal-overlay {
+  position:fixed; inset:0; z-index:600;
+  background:rgba(2,4,18,0.78);
+  backdrop-filter:blur(8px);
+  display:flex; align-items:flex-end; justify-content:center;
+  opacity:0; pointer-events:none;
+  transition:opacity .3s ease;
+}
+.rank-modal-overlay.show { opacity:1; pointer-events:all; }
+.rank-modal-sheet {
+  width:100%; max-width:520px;
+  background:linear-gradient(180deg,rgba(8,12,42,0.99) 0%,rgba(4,8,28,1) 100%);
+  border:1px solid rgba(77,110,255,0.22);
+  border-bottom:none; border-radius:28px 28px 0 0;
+  padding:0 0 40px; max-height:92vh; overflow-y:auto;
+  transform:translateY(110%);
+  transition:transform .38s cubic-bezier(.4,0,.2,1);
+  position:relative; scrollbar-width:none;
+}
+.rank-modal-sheet::-webkit-scrollbar { display:none; }
+.rank-modal-overlay.show .rank-modal-sheet { transform:translateY(0); }
+
+/* Drag handle */
+.rank-modal-handle {
+  width:40px; height:4px; border-radius:4px;
+  background:rgba(255,255,255,0.14); margin:13px auto 0;
+}
+
+/* Starfield bg */
+.rank-modal-stars {
+  position:absolute; inset:0; pointer-events:none; overflow:hidden;
+  border-radius:28px 28px 0 0; z-index:0;
+}
+.rank-modal-stars::before {
+  content:''; position:absolute; inset:0;
+  background-image:
+    radial-gradient(circle,rgba(255,255,255,0.5) 0.5px,transparent 0.5px),
+    radial-gradient(circle,rgba(255,255,255,0.28) 0.4px,transparent 0.4px);
+  background-size:42px 38px, 24px 26px;
+  background-position:5px 5px, 15px 18px;
+  opacity:0.22;
+}
+.rank-modal-stars::after {
+  content:''; position:absolute; inset:0;
+  background-image:radial-gradient(circle,rgba(255,255,255,0.35) 0.5px,transparent 0.5px);
+  background-size:65px 55px; background-position:20px 10px;
+  opacity:0.1; animation:starsShift 14s linear infinite;
+}
+@keyframes starsShift { from{transform:translateY(0)} to{transform:translateY(-24px)} }
+
+/* Header */
+.rank-modal-head {
+  position:relative; z-index:2;
+  padding:18px 20px 14px;
+  display:flex; align-items:center; justify-content:space-between;
+  border-bottom:1px solid rgba(77,110,255,0.13);
+}
+.rank-modal-title {
+  font-family:'Orbitron',sans-serif; font-weight:800;
+  font-size:13px; letter-spacing:1.5px;
+  background:linear-gradient(90deg,#a0c8ff,#c8b0ff,#ffd966);
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+}
+.rank-modal-close {
+  width:32px; height:32px; border-radius:10px;
+  background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1);
+  color:var(--muted); font-size:18px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  transition:background .2s,color .2s;
+}
+.rank-modal-close:hover { background:rgba(255,80,80,0.15); color:#ff8080; }
+
+/* Orbit node path */
+.rank-orbit-path {
+  position:relative; z-index:2;
+  display:flex; align-items:flex-start; justify-content:space-between;
+  padding:18px 16px 10px; gap:0;
+}
+.rank-orbit-node {
+  display:flex; flex-direction:column; align-items:center; gap:5px;
+  cursor:pointer; flex:1; position:relative;
+  transition:opacity .2s;
+}
+.rank-orbit-node:not(:last-child)::after {
+  content:''; position:absolute;
+  top:19px; left:58%; right:-42%; height:2px;
+  background:linear-gradient(90deg,rgba(80,110,220,0.35),rgba(80,110,220,0.08));
+  z-index:-1;
+}
+.rank-orbit-node.active-node:not(:last-child)::after {
+  background:linear-gradient(90deg,rgba(77,166,255,0.65),rgba(80,110,220,0.15));
+}
+.rank-orbit-planet {
+  width:38px; height:38px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  position:relative; transition:transform .25s,box-shadow .25s; flex-shrink:0;
+}
+.rank-orbit-node:hover .rank-orbit-planet { transform:scale(1.1); }
+.rank-orbit-node.active-node .rank-orbit-planet { transform:scale(1.22); }
+.rank-orbit-planet--member  { background:radial-gradient(circle at 35% 35%,#b0c8ff,#2a50c0); box-shadow:0 0 12px rgba(60,100,255,0.4); border:1.5px solid rgba(120,160,255,0.5); }
+.rank-orbit-planet--premium { background:radial-gradient(circle at 35% 35%,#e0d0ff,#6020c0); box-shadow:0 0 16px rgba(155,107,255,0.5); border:1.5px solid rgba(180,130,255,0.6); }
+.rank-orbit-planet--vip     { background:radial-gradient(circle at 35% 35%,#fff0a0,#c07000); box-shadow:0 0 18px rgba(255,200,60,0.5); border:1.5px solid rgba(255,200,87,0.65); }
+.rank-orbit-planet--svip    { background:radial-gradient(circle at 35% 35%,#ffffff,#ff9800,#c8b0ff); box-shadow:0 0 24px rgba(255,120,0,0.55),0 0 44px rgba(155,107,255,0.25); border:1.5px solid rgba(255,180,60,0.7); animation:svipPlanetPulse 2.2s ease-in-out infinite; }
+@keyframes svipPlanetPulse {
+  0%,100%{box-shadow:0 0 24px rgba(255,120,0,0.55),0 0 44px rgba(155,107,255,0.25)}
+  50%    {box-shadow:0 0 36px rgba(255,120,0,0.8), 0 0 64px rgba(155,107,255,0.45)}
+}
+/* Active ring */
+.rank-orbit-node.active-node .rank-orbit-planet::after {
+  content:''; position:absolute; inset:-6px; border-radius:50%;
+  border:2px solid rgba(255,255,255,0.3);
+  animation:planetRingPulse 2s ease-in-out infinite;
+}
+@keyframes planetRingPulse {
+  0%,100%{transform:scale(1);opacity:.45} 50%{transform:scale(1.18);opacity:.12}
+}
+.rank-orbit-label {
+  font-family:'Orbitron',sans-serif; font-weight:800; font-size:8px;
+  letter-spacing:.9px; text-transform:uppercase; color:var(--muted);
+  text-align:center; transition:color .2s;
+}
+.rank-orbit-node.active-node[data-rank="member"]  .rank-orbit-label { color:#a0c0ff; }
+.rank-orbit-node.active-node[data-rank="premium"] .rank-orbit-label { color:#c8b0ff; }
+.rank-orbit-node.active-node[data-rank="vip"]     .rank-orbit-label { color:#ffd966; }
+.rank-orbit-node.active-node[data-rank="svip"]    .rank-orbit-label { color:#ffb347; }
+.rank-you-tag {
+  font-size:7px; font-weight:800; letter-spacing:.7px;
+  padding:2px 6px; border-radius:6px; white-space:nowrap;
+  background:rgba(77,166,255,0.15); color:var(--blue); border:1px solid rgba(77,166,255,0.3);
+}
+
+/* Detail panel */
+.rank-detail-panel {
+  position:relative; z-index:2; margin:8px 16px 0;
+  border-radius:20px; padding:20px 18px 18px;
+  border:1px solid; overflow:hidden;
+  transition:background .35s,border-color .35s,box-shadow .35s;
+}
+.rank-detail-panel--member  { background:linear-gradient(135deg,rgba(30,50,140,0.6),rgba(10,20,80,0.75)); border-color:rgba(100,140,255,0.35); box-shadow:0 0 30px rgba(60,100,255,0.15),inset 0 1px 0 rgba(180,210,255,0.08); }
+.rank-detail-panel--premium { background:linear-gradient(135deg,rgba(80,20,180,0.6),rgba(40,10,120,0.75)); border-color:rgba(180,130,255,0.4); box-shadow:0 0 30px rgba(155,107,255,0.2),inset 0 1px 0 rgba(220,190,255,0.08); }
+.rank-detail-panel--vip     { background:linear-gradient(135deg,rgba(140,90,0,0.6),rgba(80,50,0,0.75)); border-color:rgba(255,200,87,0.4); box-shadow:0 0 30px rgba(255,200,60,0.2),inset 0 1px 0 rgba(255,240,160,0.08); }
+.rank-detail-panel--svip    { background:linear-gradient(135deg,rgba(160,60,0,0.55),rgba(100,30,150,0.5),rgba(20,60,160,0.5)); border-color:rgba(255,160,60,0.5); box-shadow:0 0 40px rgba(255,100,0,0.22),0 0 80px rgba(155,107,255,0.12),inset 0 1px 0 rgba(255,255,255,0.1); }
+.rank-detail-panel::before {
+  content:''; position:absolute; width:180px; height:180px; border-radius:50%;
+  border:1px solid rgba(255,255,255,0.07); top:-60px; right:-50px; pointer-events:none;
+}
+.rank-detail-panel::after {
+  content:''; position:absolute; width:110px; height:110px; border-radius:50%;
+  border:1px solid rgba(255,255,255,0.05); bottom:-40px; left:-25px; pointer-events:none;
+}
+
+/* Panel head */
+.rdp-head { display:flex; align-items:center; gap:12px; margin-bottom:16px; position:relative; z-index:1; }
+.rdp-planet-big {
+  width:54px; height:54px; border-radius:50%; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; position:relative;
+}
+.rdp-planet-big--member  { background:radial-gradient(circle at 35% 35%,#c0d8ff,#2040b0); box-shadow:0 0 20px rgba(60,100,255,0.5); }
+.rdp-planet-big--premium { background:radial-gradient(circle at 35% 35%,#e0d0ff,#5010b0); box-shadow:0 0 24px rgba(155,107,255,0.6); }
+.rdp-planet-big--vip     { background:radial-gradient(circle at 35% 35%,#fff0a0,#b06000); box-shadow:0 0 26px rgba(255,200,60,0.6); }
+.rdp-planet-big--svip    { background:radial-gradient(circle at 35% 35%,#fff,#ff9800,#c8b0ff); box-shadow:0 0 32px rgba(255,120,0,0.6),0 0 60px rgba(155,107,255,0.3); animation:svipPlanetPulse 2.2s ease-in-out infinite; }
+.rdp-planet-ring {
+  position:absolute; inset:-9px; border-radius:50%;
+  border:1.5px solid rgba(255,255,255,0.18);
+  animation:rdpRingSpin 6s linear infinite;
+}
+@keyframes rdpRingSpin { from{transform:rotate(0deg) scaleY(0.32)} to{transform:rotate(360deg) scaleY(0.32)} }
+.rdp-planet-ring-dot {
+  position:absolute; width:6px; height:6px; border-radius:50%;
+  background:rgba(255,255,255,0.9); top:50%; left:50%;
+  transform-origin:-36px 0; animation:rdpDotSpin 6s linear infinite;
+  box-shadow:0 0 6px rgba(255,255,255,0.8);
+}
+@keyframes rdpDotSpin {
+  from{transform:translateY(-50%) rotate(0deg) translateX(-36px)}
+  to{transform:translateY(-50%) rotate(360deg) translateX(-36px)}
+}
+.rdp-info { flex:1; min-width:0; }
+.rdp-rank-name { font-family:'Orbitron',sans-serif; font-weight:800; font-size:18px; letter-spacing:.8px; line-height:1.1; }
+.rdp-rank-name--member  { color:#a0c8ff; }
+.rdp-rank-name--premium { color:#c8b0ff; }
+.rdp-rank-name--vip     { color:#ffd966; }
+.rdp-rank-name--svip    { background:linear-gradient(90deg,#ffc857,#ff9800,#c8b0ff); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+.rdp-req { font-size:11px; color:var(--muted); margin-top:4px; font-weight:600; }
+.rdp-req strong { color:var(--text); }
+.rdp-current-tag { display:inline-flex; align-items:center; gap:5px; font-size:9px; font-weight:800; letter-spacing:.8px; padding:3px 10px; border-radius:20px; background:rgba(124,255,178,0.12); color:#7CFFB2; border:1px solid rgba(124,255,178,0.3); margin-top:4px; }
+
+/* Commission rates */
+.rdp-rates { display:flex; gap:8px; margin-bottom:16px; position:relative; z-index:1; }
+.rdp-rate-pill { flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:10px 6px; border-radius:12px; background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.07); }
+.rdp-rate-lbl { font-size:8.5px; font-weight:800; letter-spacing:.8px; text-transform:uppercase; color:var(--muted); }
+.rdp-rate-val { font-family:'Orbitron',sans-serif; font-weight:800; font-size:16px; }
+.rdp-rate-val--l1 { color:#7CFFB2; }
+.rdp-rate-val--l2 { color:var(--blue); }
+.rdp-rate-val--l3 { color:var(--gold); }
+
+/* Benefits */
+.rdp-benefits-title { font-size:9.5px; font-weight:800; letter-spacing:1.2px; text-transform:uppercase; color:var(--muted); margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid rgba(255,255,255,0.07); display:flex; align-items:center; gap:6px; position:relative; z-index:1; }
+.rdp-benefits-list { display:flex; flex-direction:column; gap:8px; position:relative; z-index:1; }
+.rdp-benefit-item { display:flex; align-items:flex-start; gap:10px; font-size:12.5px; color:var(--text); font-weight:500; line-height:1.45; }
+.rdp-benefit-icon { width:22px; height:22px; border-radius:7px; flex-shrink:0; display:flex; align-items:center; justify-content:center; margin-top:1px; }
+.rdp-benefit-icon svg { width:13px; height:13px; }
+.rdp-benefit-icon--member  { background:rgba(60,100,255,0.15); border:1px solid rgba(100,140,255,0.3); color:#7aaeff; }
+.rdp-benefit-icon--premium { background:rgba(155,107,255,0.15); border:1px solid rgba(180,130,255,0.3); color:#c8b0ff; }
+.rdp-benefit-icon--vip     { background:rgba(255,200,60,0.12); border:1px solid rgba(255,200,87,0.3); color:#ffd966; }
+.rdp-benefit-icon--svip    { background:rgba(255,120,0,0.12); border:1px solid rgba(255,160,60,0.35); color:#ffb347; }
+
+/* Locked / progress */
+.rdp-locked-notice { display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--muted); background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:10px; padding:10px 13px; margin-top:14px; position:relative; z-index:1; }
+.rdp-locked-notice svg { flex-shrink:0; color:var(--gold); }
+.rdp-locked-notice strong { color:var(--text); }
+.rdp-progress-to { margin-top:14px; position:relative; z-index:1; }
+.rdp-progress-to-label { font-size:10px; font-weight:700; color:var(--muted); margin-bottom:6px; display:flex; justify-content:space-between; }
+.rdp-progress-to-track { height:6px; border-radius:6px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.06); overflow:hidden; }
+.rdp-progress-to-fill { height:100%; border-radius:6px; transition:width .9s cubic-bezier(.4,0,.2,1); }
+.rdp-progress-to-fill--member  { background:linear-gradient(90deg,#3060c0,#7aaeff); }
+.rdp-progress-to-fill--premium { background:linear-gradient(90deg,#7030c0,#c8b0ff); }
+.rdp-progress-to-fill--vip     { background:linear-gradient(90deg,#c07000,#ffd966); }
+.rdp-progress-to-fill--svip    { background:linear-gradient(90deg,#ff4e00,#ffc857,#c8b0ff); background-size:200% 100%; animation:svipBeam 2s linear infinite; }
+/* ══════════════════════════════════════════
+   REFERRAL CODE BLOCK — upgraded
+   ══════════════════════════════════════════ */
+.referral-code-block {
+  margin-bottom: 12px;
+  background: linear-gradient(135deg, rgba(20,10,60,0.85), rgba(8,16,48,0.9));
+  border: 1px solid rgba(155,107,255,0.4);
+  border-radius: 18px;
+  padding: 16px 16px 12px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Corner accents */
+.referral-code-block::before {
+  content: '';
+  position: absolute; top: 0; left: 0;
+  width: 40px; height: 40px;
+  border-top: 2px solid rgba(155,107,255,0.6);
+  border-left: 2px solid rgba(155,107,255,0.6);
+  border-radius: 18px 0 0 0;
+  pointer-events: none;
+}
+.referral-code-block::after {
+  content: '';
+  position: absolute; bottom: 0; right: 0;
+  width: 40px; height: 40px;
+  border-bottom: 2px solid rgba(200,176,255,0.4);
+  border-right: 2px solid rgba(200,176,255,0.4);
+  border-radius: 0 0 18px 0;
+  pointer-events: none;
+}
+
+.rcb-label {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 9px; font-weight: 800; letter-spacing: 2px;
+  text-transform: uppercase; color: rgba(200,176,255,0.6);
+  margin-bottom: 10px;
+}
+
+/* Code wrap — the main display */
+.rcb-code-wrap {
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(155,107,255,0.25);
+  border-radius: 12px;
+  padding: 14px 14px 14px 16px;
+  position: relative; overflow: hidden;
+  margin-bottom: 10px;
+}
+
+/* Scanline effect */
+.rcb-scanline {
+  position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 3px,
+    rgba(155,107,255,0.03) 3px,
+    rgba(155,107,255,0.03) 4px
+  );
+}
+
+/* Moving glow sweep */
+.rcb-code-wrap::before {
+  content: '';
+  position: absolute; top: 0; left: -100%; width: 60%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(155,107,255,0.12), transparent);
+  animation: rcbSweep 3s ease-in-out infinite;
+  z-index: 1;
+}
+@keyframes rcbSweep {
+  0%   { left: -100%; }
+  60%  { left: 140%; }
+  100% { left: 140%; }
+}
+
+/* Bottom glow line */
+.rcb-code-wrap::after {
+  content: '';
+  position: absolute; bottom: 0; left: 10%; right: 10%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(155,107,255,0.5), rgba(200,176,255,0.6), rgba(155,107,255,0.5), transparent);
+  animation: rcbLineGlow 2.5s ease-in-out infinite alternate;
+}
+@keyframes rcbLineGlow {
+  from { opacity: 0.4; transform: scaleX(0.8); }
+  to   { opacity: 1;   transform: scaleX(1); }
+}
+
+.rcb-glitch-wrap {
+  flex: 1; min-width: 0; position: relative; z-index: 2; overflow: hidden;
+}
+
+/* THE CODE TEXT */
+.rcb-code {
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 800;
+  font-size: 20px;
+  letter-spacing: 3px;
+  display: inline-block;
+  color: #e8d8ff;
+  text-shadow:
+    0 0 10px rgba(200,176,255,0.8),
+    0 0 20px rgba(155,107,255,0.5),
+    0 0 40px rgba(155,107,255,0.25);
+  white-space: nowrap;
+  animation: codeFlicker 5s ease-in-out infinite;
+  position: relative;
+}
+
+/* Subtle flicker */
+@keyframes codeFlicker {
+  0%,92%,96%,100% { opacity: 1; }
+  93%             { opacity: 0.85; }
+  94%             { opacity: 1; }
+  95%             { opacity: 0.9; }
+}
+
+/* Glitch pseudo-layers */
+.rcb-code::before,
+.rcb-code::after {
+  content: attr(data-code);
+  position: absolute; top: 0; left: 0;
+  width: 100%; overflow: hidden;
+  font-family: inherit; font-size: inherit;
+  font-weight: inherit; letter-spacing: inherit;
+  white-space: nowrap;
+}
+.rcb-code::before {
+  color: rgba(77,166,255,0.6);
+  animation: glitchTop 6s infinite;
+  clip-path: polygon(0 0, 100% 0, 100% 35%, 0 35%);
+}
+.rcb-code::after {
+  color: rgba(255,107,200,0.5);
+  animation: glitchBot 6s infinite;
+  clip-path: polygon(0 65%, 100% 65%, 100% 100%, 0 100%);
+}
+@keyframes glitchTop {
+  0%,88%,92%,100% { transform: translate(0); }
+  89% { transform: translate(-2px, -1px); }
+  90% { transform: translate(2px, 0); }
+  91% { transform: translate(-1px, 1px); }
+}
+@keyframes glitchBot {
+  0%,88%,92%,100% { transform: translate(0); }
+  89% { transform: translate(2px, 1px); }
+  90% { transform: translate(-2px, 0); }
+  91% { transform: translate(1px, -1px); }
+}
+
+/* Copy button */
+.rcb-copy-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  flex-shrink: 0; position: relative; z-index: 2;
+  padding: 9px 14px; border-radius: 10px;
+  border: 1px solid rgba(155,107,255,0.5);
+  background: linear-gradient(135deg, rgba(100,40,200,0.3), rgba(155,107,255,0.15));
+  color: #c8b0ff;
+  font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 800;
+  letter-spacing: 0.3px; cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  box-shadow: 0 0 12px rgba(155,107,255,0.15), inset 0 1px 0 rgba(255,255,255,0.08);
+}
+.rcb-copy-btn:hover {
+  background: linear-gradient(135deg, rgba(120,50,230,0.45), rgba(155,107,255,0.3));
+  border-color: rgba(200,176,255,0.7);
+  box-shadow: 0 0 18px rgba(155,107,255,0.4), inset 0 1px 0 rgba(255,255,255,0.12);
+  transform: translateY(-1px);
+}
+.rcb-copy-btn:active { transform: scale(0.97); }
+
+/* Share row */
+.rcb-share-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+}
+.rcb-share-hint {
+  font-size: 10.5px; color: rgba(200,176,255,0.5);
+  font-style: italic; letter-spacing: 0.2px;
+}
+.rcb-share-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 12px; border-radius: 8px;
+  border: 1px solid rgba(155,107,255,0.25);
+  background: rgba(155,107,255,0.07);
+  color: rgba(200,176,255,0.7);
+  font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 700;
+  cursor: pointer; transition: all 0.2s;
+}
+.rcb-share-btn:hover {
+  background: rgba(155,107,255,0.15);
+  color: #c8b0ff;
+  border-color: rgba(155,107,255,0.4);
+}
+/* ══════════════════════════════════════════
+   NAV RANK — LIVING PLANET BADGE
+   ══════════════════════════════════════════ */
+.nav-rank-card {
+  margin: 10px auto 14px;
+  width: 112px; height: 112px;
+  border-radius: 50%;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 2px;
+  position: relative;
+  cursor: pointer;
+  overflow: visible;
+  background: radial-gradient(circle at 33% 33%, #c0d8ff 0%, #3a60d8 42%, #0a1640 100%);
+  border: 2px solid rgba(100,150,255,0.55);
+  box-shadow:
+    0 0 24px rgba(60,110,255,0.4),
+    0 0 50px rgba(60,110,255,0.12),
+    inset 0 1px 0 rgba(200,220,255,0.2),
+    inset 0 0 28px rgba(0,8,50,0.6);
+  animation: nrPulseMember 3.5s ease-in-out infinite;
+}
+
+/* ── Tilted 3D orbit ring ── */
+.nav-rank-card::before {
+  content: '';
+  position: absolute;
+  width: 150px; height: 150px;
+  top: 50%; left: 50%;
+  border-radius: 50%;
+  border: 2px solid rgba(120,170,255,0.55);
+  transform: translate(-50%,-50%) perspective(280px) rotateX(72deg) rotateZ(0deg);
+  animation: nrRingA 5s linear infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+@keyframes nrRingA {
+  from { transform: translate(-50%,-50%) perspective(280px) rotateX(72deg) rotateZ(0deg); }
+  to   { transform: translate(-50%,-50%) perspective(280px) rotateX(72deg) rotateZ(360deg); }
+}
+
+/* ── Outer flat dashed ring ── */
+.nav-rank-card::after {
+  content: '';
+  position: absolute;
+  width: 166px; height: 166px;
+  top: 50%; left: 50%;
+  border-radius: 50%;
+  border: 1px dashed rgba(120,170,255,0.2);
+  transform: translate(-50%,-50%) rotate(0deg);
+  animation: nrRingB 12s linear infinite reverse;
+  pointer-events: none;
+  z-index: 0;
+}
+@keyframes nrRingB {
+  from { transform: translate(-50%,-50%) rotate(0deg); }
+  to   { transform: translate(-50%,-50%) rotate(360deg); }
+}
+
+/* ── Orbit container ── */
+.nav-rank-card-orbit {
+  display: flex; flex-direction: column;
+  align-items: center; gap: 0;
+  position: relative; z-index: 2;
+}
+
+/* ── Orbiting particle dots ── */
+.nav-rank-card-dot {
+  display: block !important;
+  position: absolute;
+  border-radius: 50%;
+  top: 50%; left: 50%;
+  z-index: 5;
+  pointer-events: none;
+}
+.nav-rank-card-dot:first-child {
+  width: 7px; height: 7px;
+  background: #a0c8ff;
+  box-shadow: 0 0 8px rgba(160,200,255,1), 0 0 16px rgba(100,160,255,0.6);
+  animation: nrDotA 3.2s linear infinite;
+}
+.nav-rank-card-dot:last-child {
+  width: 4px; height: 4px;
+  background: rgba(200,225,255,0.85);
+  box-shadow: 0 0 5px rgba(200,230,255,0.9);
+  animation: nrDotB 5.8s linear infinite reverse;
+}
+@keyframes nrDotA {
+  from { transform: translate(-50%,-50%) rotate(0deg) translateX(62px) rotate(0deg); }
+  to   { transform: translate(-50%,-50%) rotate(360deg) translateX(62px) rotate(-360deg); }
+}
+@keyframes nrDotB {
+  from { transform: translate(-50%,-50%) rotate(45deg) translateX(52px); }
+  to   { transform: translate(-50%,-50%) rotate(405deg) translateX(52px); }
+}
+
+/* ── Label + Name text ── */
+.nav-rank-card-eyebrow {
+  font-family: 'Inter', sans-serif;
+  font-size: 7.5px; font-weight: 800; letter-spacing: 2.5px;
+  text-transform: uppercase;
+  position: relative; z-index: 4;
+  color: rgba(255,255,255,0.9);
+  text-shadow:
+    0 0 8px rgba(255,255,255,0.8),
+    0 1px 3px rgba(0,0,0,0.9);
+  -webkit-text-fill-color: unset;
+  background: none;
+}
+@keyframes eyebrowShine {
+  0%   { background-position: 0% center; }
+  100% { background-position: 200% center; }
+}
+
+/* ── Base rank name ── */
+.nav-rank-card-name {
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 800; font-size: 14px;
+  letter-spacing: 2px; text-transform: uppercase;
+  line-height: 1.2; position: relative; z-index: 4;
+  /* Dark pill behind text para laging visible */
+  background-color: rgba(0,0,10,0.45);
+  padding: 3px 10px 4px;
+  border-radius: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+/* ── MEMBER — cyan-blue gradient shimmer ── */
+.nav-rank-card-name--member,
+.nav-rank-card-name--premium,
+.nav-rank-card-name--vip {
+  background-color: rgba(0,0,10,0.45);
+  background-image: none; /* ireset muna */
+}
+/* i-reapply ang gradients via filter + color instead */
+.nav-rank-card-name--member {
+  color: #b8e8ff;
+  -webkit-text-fill-color: #b8e8ff;
+  background: rgba(0,0,10,0.45);
+  filter: drop-shadow(0 0 8px rgba(80,200,255,0.9)) drop-shadow(0 0 16px rgba(40,140,255,0.6));
+  animation: nrMemberText 4s ease-in-out infinite alternate;
+}
+.nav-rank-card-name--premium {
+  color: #ddc0ff;
+  -webkit-text-fill-color: #ddc0ff;
+  background: rgba(0,0,10,0.45);
+  filter: drop-shadow(0 0 8px rgba(180,120,255,0.9)) drop-shadow(0 0 16px rgba(130,60,220,0.6));
+  animation: nrPremiumText 3.5s ease-in-out infinite alternate;
+}
+.nav-rank-card-name--vip {
+  color: #ffe878;
+  -webkit-text-fill-color: #ffe878;
+  background: rgba(0,0,10,0.45);
+  filter: drop-shadow(0 0 8px rgba(255,220,60,0.95)) drop-shadow(0 0 16px rgba(200,140,0,0.6));
+  animation: nrVipText 3s ease-in-out infinite alternate;
+}
+.nav-rank-card-name--svip {
+  background: linear-gradient(90deg, #ff9800, #ffc857, #ffffff, #c8b0ff, #4da6ff, #ff9800);
+  background-color: rgba(0,0,10,0.45);
+  background-size: 300% auto;
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: nrSvipText 1.8s linear infinite;
+  filter: drop-shadow(0 0 8px rgba(255,160,50,0.7)) drop-shadow(0 2px 14px rgba(155,107,255,0.5));
+}
+@keyframes nrSvipText {
+  from { background-position: 0% center; }
+  to   { background-position: 300% center; }
+}
+/* ══ MEMBER — blue ice world ══ */
+.nav-rank-card-name--member {
+  color: #a8c4ff;
+  text-shadow: 0 0 10px rgba(80,130,255,0.7);
+}
+.nav-rank-card:has(.nav-rank-card-name--member) {
+  background: radial-gradient(circle at 33% 33%, #c0d8ff 0%, #3a60d8 42%, #0a1640 100%);
+  border-color: rgba(100,150,255,0.55);
+  animation: nrPulseMember 3.5s ease-in-out infinite;
+}
+.nav-rank-card:has(.nav-rank-card-name--member)::before { border-color: rgba(120,170,255,0.55); }
+.nav-rank-card:has(.nav-rank-card-name--member)::after  { border-color: rgba(120,170,255,0.2); }
+@keyframes nrPulseMember {
+  0%,100% { box-shadow: 0 0 24px rgba(60,110,255,0.38), 0 0 50px rgba(60,110,255,0.1), inset 0 1px 0 rgba(200,220,255,0.2), inset 0 0 28px rgba(0,8,50,0.6); }
+  50%      { box-shadow: 0 0 38px rgba(60,110,255,0.58), 0 0 68px rgba(60,110,255,0.18), inset 0 1px 0 rgba(200,220,255,0.2), inset 0 0 28px rgba(0,8,50,0.6); }
+}
+
+/* ══ PREMIUM — violet nebula ══ */
+.nav-rank-card-name--premium {
+  color: #d6bfff;
+  text-shadow: 0 0 12px rgba(155,107,255,0.8);
+}
+.nav-rank-card:has(.nav-rank-card-name--premium) {
+  background: radial-gradient(circle at 33% 33%, #e0d0ff 0%, #7030d0 42%, #180855 100%);
+  border-color: rgba(180,130,255,0.6);
+  animation: nrPulsePremium 3s ease-in-out infinite;
+}
+.nav-rank-card:has(.nav-rank-card-name--premium)::before { border-color: rgba(200,160,255,0.65); }
+.nav-rank-card:has(.nav-rank-card-name--premium)::after  { border-color: rgba(200,160,255,0.2); }
+.nav-rank-card:has(.nav-rank-card-name--premium) .nav-rank-card-eyebrow { color: rgba(210,185,255,0.55); }
+.nav-rank-card:has(.nav-rank-card-name--premium) .nav-rank-card-dot:first-child {
+  background: #c8a0ff;
+  box-shadow: 0 0 9px rgba(200,160,255,1), 0 0 18px rgba(155,107,255,0.7);
+}
+.nav-rank-card:has(.nav-rank-card-name--premium) .nav-rank-card-dot:last-child {
+  background: rgba(210,185,255,0.85);
+  box-shadow: 0 0 5px rgba(210,185,255,0.95);
+}
+@keyframes nrPulsePremium {
+  0%,100% { box-shadow: 0 0 26px rgba(155,107,255,0.42), 0 0 55px rgba(155,107,255,0.1), inset 0 1px 0 rgba(220,190,255,0.15), inset 0 0 28px rgba(20,0,60,0.7); }
+  50%      { box-shadow: 0 0 42px rgba(155,107,255,0.68), 0 0 75px rgba(155,107,255,0.2), inset 0 1px 0 rgba(220,190,255,0.15), inset 0 0 28px rgba(20,0,60,0.7); }
+}
+
+/* ══ VIP — gold sun ══ */
+.nav-rank-card-name--vip {
+  color: #ffe49a;
+  text-shadow: 0 0 12px rgba(255,210,60,0.8);
+}
+.nav-rank-card:has(.nav-rank-card-name--vip) {
+  background: radial-gradient(circle at 33% 33%, #fff6b0 0%, #d4900a 42%, #3a1800 100%);
+  border-color: rgba(255,200,87,0.65);
+  animation: nrPulseVip 2.8s ease-in-out infinite;
+}
+.nav-rank-card:has(.nav-rank-card-name--vip)::before { border-color: rgba(255,210,80,0.7); }
+.nav-rank-card:has(.nav-rank-card-name--vip)::after  { border-color: rgba(255,210,80,0.2); }
+.nav-rank-card:has(.nav-rank-card-name--vip) .nav-rank-card-eyebrow { color: rgba(255,230,130,0.55); }
+.nav-rank-card:has(.nav-rank-card-name--vip) .nav-rank-card-dot:first-child {
+  background: #ffd966;
+  box-shadow: 0 0 10px rgba(255,210,60,1), 0 0 20px rgba(255,180,0,0.7);
+}
+.nav-rank-card:has(.nav-rank-card-name--vip) .nav-rank-card-dot:last-child {
+  background: rgba(255,235,120,0.9);
+  box-shadow: 0 0 6px rgba(255,230,100,1);
+}
+@keyframes nrPulseVip {
+  0%,100% { box-shadow: 0 0 26px rgba(255,200,60,0.45), 0 0 55px rgba(255,200,60,0.12), inset 0 1px 0 rgba(255,240,160,0.2), inset 0 0 28px rgba(50,15,0,0.7); }
+  50%      { box-shadow: 0 0 44px rgba(255,200,60,0.72), 0 0 78px rgba(255,200,60,0.22), inset 0 1px 0 rgba(255,240,160,0.2), inset 0 0 28px rgba(50,15,0,0.7); }
+}
+
+/* ══ SVIP — plasma core ══ */
+.nav-rank-card-name--svip {
+  background: linear-gradient(90deg, #ff9800, #ffc857, #c8b0ff, #4da6ff, #ff9800);
+  background-size: 300% auto;
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: nrSvipText 2.2s linear infinite;
+  filter: drop-shadow(0 0 6px rgba(255,150,50,0.6));
+}
+.nav-rank-card:has(.nav-rank-card-name--svip) {
+  background: linear-gradient(270deg,
+    rgba(255,80,0,0.92), rgba(255,160,0,0.88),
+    rgba(200,100,255,0.78), rgba(60,150,255,0.82),
+    rgba(255,80,0,0.92));
+  background-size: 300% 100%;
+  border-color: rgba(255,160,50,0.72);
+  animation: nrSvipBg 2.2s linear infinite, nrPulseSvip 2.4s ease-in-out infinite;
+}
+.nav-rank-card:has(.nav-rank-card-name--svip)::before {
+  border-color: rgba(255,200,60,0.8);
+  border-width: 2px;
+  animation: nrRingA 2.8s linear infinite;
+}
+.nav-rank-card:has(.nav-rank-card-name--svip)::after {
+  border-color: rgba(200,150,255,0.35);
+  animation: nrRingB 5.5s linear infinite;
+}
+.nav-rank-card:has(.nav-rank-card-name--svip) .nav-rank-card-eyebrow { color: rgba(255,230,200,0.65); }
+.nav-rank-card:has(.nav-rank-card-name--svip) .nav-rank-card-dot:first-child {
+  width: 8px; height: 8px;
+  background: #fff;
+  box-shadow: 0 0 12px rgba(255,255,255,1), 0 0 24px rgba(255,150,50,0.8);
+  animation: nrDotA 1.8s linear infinite;
+}
+.nav-rank-card:has(.nav-rank-card-name--svip) .nav-rank-card-dot:last-child {
+  width: 5px; height: 5px;
+  background: #c8b0ff;
+  box-shadow: 0 0 8px rgba(200,176,255,1);
+  animation: nrDotB 2.8s linear infinite;
+}
+@keyframes nrSvipText { from{background-position:0% center} to{background-position:300% center} }
+@keyframes nrSvipBg   { 0%{background-position:0% 50%} 100%{background-position:300% 50%} }
+@keyframes nrPulseSvip {
+  0%,100% { box-shadow: 0 0 32px rgba(255,120,0,0.55), 0 0 65px rgba(255,120,0,0.15), inset 0 1px 0 rgba(255,255,255,0.18), inset 0 0 28px rgba(30,0,0,0.5); }
+  50%      { box-shadow: 0 0 52px rgba(155,107,255,0.7), 0 0 90px rgba(155,107,255,0.22), inset 0 1px 0 rgba(255,255,255,0.22), inset 0 0 28px rgba(30,0,0,0.5); }
+}
+.nav-rank-card:has(.nav-rank-card-name--premium) .nav-rank-card-eyebrow {
+  background: linear-gradient(90deg, rgba(160,100,255,0.4), rgba(220,190,255,0.75), rgba(160,100,255,0.4));
+  background-size: 200% auto; animation: eyebrowShine 3s linear infinite;
+}
+.nav-rank-card:has(.nav-rank-card-name--vip) .nav-rank-card-eyebrow {
+  background: linear-gradient(90deg, rgba(200,140,0,0.5), rgba(255,230,100,0.8), rgba(200,140,0,0.5));
+  background-size: 200% auto; animation: eyebrowShine 3s linear infinite;
+}
+.nav-rank-card:has(.nav-rank-card-name--svip) .nav-rank-card-eyebrow {
+  background: linear-gradient(90deg, rgba(255,140,50,0.5), rgba(255,220,160,0.85), rgba(255,140,50,0.5));
+  background-size: 200% auto; animation: eyebrowShine 3s linear infinite;
+}
+/* ── Nav Drawer — Space Background ── */
+.nav-drawer::before {
+  content: '';
+  position: absolute; inset: 0;
+  pointer-events: none; z-index: 0;
+  background-image:
+    radial-gradient(circle, rgba(255,255,255,0.75) 0.5px, transparent 0.5px),
+    radial-gradient(circle, rgba(255,255,255,0.45) 0.4px, transparent 0.4px),
+    radial-gradient(circle, rgba(255,255,255,0.3)  0.3px, transparent 0.3px);
+  background-size: 44px 38px, 28px 32px, 18px 20px;
+  background-position: 5px 8px, 15px 20px, 9px 4px;
+  opacity: 0.55;
+}
+.nav-drawer::after {
+  content: '';
+  position: absolute; inset: 0;
+  pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(ellipse at 20% 15%, rgba(77,100,255,0.18) 0%, transparent 55%),
+    radial-gradient(ellipse at 80% 80%, rgba(155,60,255,0.12) 0%, transparent 50%),
+    radial-gradient(ellipse at 60% 40%, rgba(40,140,255,0.08) 0%, transparent 45%);
+  animation: navNebulaShift 8s ease-in-out infinite alternate;
+}
+@keyframes navNebulaShift {
+  from { opacity: 0.7; transform: scale(1); }
+  to   { opacity: 1;   transform: scale(1.04); }
+}
+
+/* Make sure nav content stays above the bg effects */
+.nav-drawer-head,
+.nav-rank-card,
+.nav-link,
+.nav-drawer > div,
+.nav-drawer > a {
+  position: relative;
+  z-index: 1;
+}
+.ref-level-card { cursor:pointer; }
+.ref-level-count { font-size:9.5px; font-weight:700; color:var(--muted); margin-top:2px; }
+.lvl-team-item { padding:12px 14px; border-radius:12px; border:1px solid var(--border); background:rgba(0,0,0,0.15); margin-bottom:8px; }
+.lvl-team-name { font-size:13px; font-weight:700; color:var(--text); letter-spacing:.3px; }
+.lvl-team-sub { font-size:11px; color:var(--muted); margin-top:3px; }
+.lvl-load-more-btn { width:100%; padding:10px; border-radius:10px; border:1px solid rgba(77,166,255,0.3); background:rgba(77,166,255,0.07); color:var(--blue); font-family:'Inter',sans-serif; font-size:12.5px; font-weight:700; cursor:pointer; margin-top:6px; }
+.lvl-load-more-btn:hover { background:rgba(77,166,255,0.14); }
+.lvl-team-empty { text-align:center; padding:32px 16px; color:var(--muted); font-size:13px; }
+</style>
+</head>
+<body class="dashboard-body">
+
+  <div class="stars"></div>
+  <div class="stars2"></div>
+  <div class="orbit-field">
+    <div class="bg-ring bg-ring--a"></div>
+    <div class="bg-ring bg-ring--b"></div>
+  </div>
+
+  <header class="dash-header">
+    <div class="dash-brand">
+      <button class="burger-btn" id="burgerBtn" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+      <div class="dash-logo-wrap">
+        <img src="assets/logo.png" alt="ORB-X PH" class="dash-logo-img">
+      </div>
+      <div class="dash-wordmark">ORB-<span>X</span> <small>PH</small></div>
+    </div>
+    <div class="dash-user">
+      <button id="themeToggle" class="icon-btn" aria-label="Toggle theme">
+        <span id="themeIcon">🌙</span>
+      </button>
+      <span class="hide-mobile">Hi, <strong id="dashUsername">—</strong></span>
+      <button id="logoutBtn" class="btn-ghost">Log out</button>
+    </div>
+  </header>
+
+  <div class="nav-overlay" id="navOverlay"></div>
+  <nav class="nav-drawer" id="navDrawer">
+    <div class="nav-drawer-head">
+      <div class="dash-wordmark">ORB-<span>X</span> <small>PH</small></div>
+      <button class="modal-close" id="navClose">&times;</button>
+    </div>
+
+    <!-- RANK SECTION -->
+<div class="nav-rank-card" id="navRankCard">
+  <div class="nav-rank-card-eyebrow">Your Rank</div>
+  <div class="nav-rank-card-orbit">
+    <span class="nav-rank-card-dot"></span>
+    <span id="navRankLabel" class="nav-rank-card-name nav-rank-card-name--member">Member</span>
+    <span class="nav-rank-card-dot"></span>
+  </div>
+</div>
+
+    <!-- DIVIDER -->
+    <div style="height:1px; background:var(--border); margin:6px 16px;"></div>
+
+    <a href="#" class="nav-link active">
+      <svg class="nav-icon" viewBox="0 0 20 20" fill="none"><path d="M3 10l7-6 7 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 9v7a1 1 0 001 1h3v-4h2v4h3a1 1 0 001-1V9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Dashboard
+    </a>
+    <a href="myorders.html" class="nav-link">
+      <svg class="nav-icon" viewBox="0 0 20 20" fill="none"><rect x="3" y="2" width="14" height="16" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M7 6h6M7 10h6M7 14h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      My Orders
+    </a>
+    <a href="withdrawhistory.html" class="nav-link">
+      <svg class="nav-icon" viewBox="0 0 20 20" fill="none"><rect x="2" y="4" width="16" height="12" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M6 10h8M11 8l2 2-2 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Withdraw History
+    </a>
+    <a href="#" class="nav-link" id="navProfileLink">
+      <svg class="nav-icon" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="6.5" r="3.5" stroke="currentColor" stroke-width="1.5"/><path d="M3 17c0-3.5 3-6 7-6s7 2.5 7 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      Profile
+    </a>
+    <a href="#" class="nav-link" id="navSettingsLink">
+      <svg class="nav-icon" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="2.6" stroke="currentColor" stroke-width="1.5"/><path d="M10 2.5v2.2M10 15.3v2.2M3.7 5.7l1.5 1.5M14.8 12.8l1.5 1.5M2.5 10h2.2M15.3 10h2.2M3.7 14.3l1.5-1.5M14.8 7.2l1.5-1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      Settings
+    </a>
+    <a href="#" class="nav-link" id="navCsLink">
+      <svg class="nav-icon" viewBox="0 0 20 20" fill="none"><path d="M3 11v-1a7 7 0 0114 0v1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><rect x="2.3" y="11" width="3.4" height="4.6" rx="1.2" stroke="currentColor" stroke-width="1.5"/><rect x="14.3" y="11" width="3.4" height="4.6" rx="1.2" stroke="currentColor" stroke-width="1.5"/><path d="M15.5 15.6v.4a3 3 0 01-3 3h-1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      Customer Service
+    </a>
+    <a href="admin.html" class="nav-link" style="margin-top:auto;">
+      <svg class="nav-icon" viewBox="0 0 20 20" fill="none"><path d="M10 2l6 2.4v4.8c0 4-2.6 6.8-6 8.6-3.4-1.8-6-4.6-6-8.6V4.4L10 2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+      Admin Panel
+    </a>
+    <a href="#" class="nav-link" id="navLogout">
+      <svg class="nav-icon" viewBox="0 0 20 20" fill="none"><path d="M7 17H4.5A1.5 1.5 0 013 15.5v-11A1.5 1.5 0 014.5 3H7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M13 13.5L17 10l-4-3.5M17 10H7.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Log out
+    </a>
+  </nav>
+
+  <main class="dash-main">
+
+    <!-- CAROUSEL -->
+    <div class="carousel" id="carousel">
+      <div class="carousel-track" id="carouselTrack">
+        <div class="carousel-slide slide-a">
+          <img class="slide-img" src="assets/promos/promo1.png" alt="" onerror="this.style.display='none'">
+          <div class="slide-tag-wrap"><div class="slide-tag">PROMO</div></div>
+          <div class="slide-text"><h3>Up to 20% off this week</h3><p>Limited-time offer on select packages.</p></div>
+        </div>
+        <div class="carousel-slide slide-b">
+          <img class="slide-img" src="assets/promos/promo2.png" alt="" onerror="this.style.display='none'">
+          <div class="slide-tag-wrap"><div class="slide-tag">NEW</div></div>
+          <div class="slide-text"><h3>New packages now available</h3><p>Check out our latest tier additions.</p></div>
+        </div>
+        <div class="carousel-slide slide-c">
+          <img class="slide-img" src="assets/promos/promo3.png" alt="" onerror="this.style.display='none'">
+          <div class="slide-tag-wrap"><div class="slide-tag">ANNOUNCEMENT</div></div>
+          <div class="slide-text"><h3>Need help? We're here for you</h3><p>Reach out anytime through Customer Support.</p></div>
+        </div>
+      </div>
+      <div class="carousel-dots" id="carouselDots"></div>
+    </div>
+
+    <!-- SUPER WALLET BOX -->
+    <div class="super-wallet" id="walletBox">
+      <div class="sw-top">
+        <div class="sw-header">
+          <div class="sw-header-left">
+            <svg viewBox="0 0 24 24" fill="none" style="width:18px;height:18px;color:var(--blue)">
+              <rect x="2" y="6" width="20" height="14" rx="2.5" stroke="currentColor" stroke-width="1.5"/>
+              <path d="M2 10h20" stroke="currentColor" stroke-width="1.5"/>
+              <path d="M6 3l4-1 8 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="17" cy="15" r="1.5" fill="currentColor"/>
+            </svg>
+            <span class="wallet-label">My Wallet</span>
+          </div>
+          <div class="wallet-status-dot"></div>
+        </div>
+        <div class="wallet-stats">
+          <div class="wallet-stat">
+            <div class="wallet-stat-icon wallet-stat-icon--income">
+              <svg viewBox="0 0 20 20" fill="none"><path d="M10 15V5M10 5l-4 4M10 5l4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 18h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </div>
+            <div class="wallet-stat-info">
+              <div class="wallet-stat-label">Total Income</div>
+              <div class="wallet-stat-value" id="walletIncome">&#8369;0.00</div>
+            </div>
+          </div>
+          <div class="wallet-stat">
+            <div class="wallet-stat-icon wallet-stat-icon--withdraw">
+              <svg viewBox="0 0 20 20" fill="none"><path d="M10 5v10M10 15l-4-4M10 15l4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 18h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </div>
+            <div class="wallet-stat-info">
+              <div class="wallet-stat-label">Withdraw</div>
+              <div class="wallet-stat-value wallet-stat-value--withdrawn" id="walletWithdrawn">&#8369;0.00</div>
+            </div>
+          </div>
+          <div class="wallet-stat">
+            <div class="wallet-stat-icon wallet-stat-icon--daily">
+              <svg viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="3.5" stroke="currentColor" stroke-width="1.5"/><path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.34 4.34l1.42 1.42M14.24 14.24l1.42 1.42M4.34 15.66l1.42-1.42M14.24 5.76l1.42-1.42" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </div>
+            <div class="wallet-stat-info">
+              <div class="wallet-stat-label">Daily Reward</div>
+              <div class="wallet-stat-value wallet-stat-value--daily" id="walletDailyReward">&#8369;0.00</div>
+            </div>
+          </div>
+          <div class="wallet-stat">
+            <div class="wallet-stat-icon wallet-stat-icon--task">
+              <svg viewBox="0 0 20 20" fill="none"><rect x="3" y="2" width="14" height="16" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M7 7l2 2 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 13h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </div>
+            <div class="wallet-stat-info">
+              <div class="wallet-stat-label">Task Reward</div>
+              <div class="wallet-stat-value wallet-stat-value--task" id="walletTaskReward">&#8369;0.00</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sw-orders" id="swOrdersStrip" style="display:none">
+        <div class="sw-orders-left">
+          <div class="sw-orders-heading">
+            <svg viewBox="0 0 18 18" fill="none" width="13" height="13">
+              <rect x="2.5" y="1.5" width="13" height="15" rx="2" stroke="currentColor" stroke-width="1.3"/>
+              <path d="M6 6h6M6 9h6M6 12h4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+            </svg>
+            Orders
+          </div>
+          <div id="osbLeft" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;"></div>
+        </div>
+        <button class="osb-view-btn" id="viewAllOrdersBtn">
+          View All
+          <svg viewBox="0 0 14 14" fill="none" width="11" height="11">
+            <path d="M5 3l4 4-4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="sw-bottom">
+        <button class="wallet-withdraw-btn" id="walletWithdrawBtn">
+          <svg viewBox="0 0 20 20" fill="none" width="15" height="15">
+            <rect x="2" y="4" width="16" height="12" rx="2" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M6 10h8M11 8l2 2-2 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Request Withdrawal
+        </button>
+      </div>
+    </div>
+
+    <!-- REFERRAL BOX — Code only by default, full details on expand -->
+    <div class="referral-box" id="referralBox">
+
+      <div class="referral-header">
+        <svg width="17" height="17" viewBox="0 0 20 20" fill="none" style="color:#c8b0ff;flex-shrink:0">
+          <circle cx="8" cy="6" r="3" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M2 17c0-3.314 2.686-5 6-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <circle cx="15" cy="13" r="2.5" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M15 10.5V13l1.5 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+<span class="referral-label" id="referralLabelText">My Referral Code</span>
+        <div class="referral-status-dot"></div>
+      </div>
+
+<!-- Referral Code — upgraded design -->
+<div class="referral-code-block">
+  <div class="rcb-label">
+    <svg viewBox="0 0 16 16" fill="none" width="11" height="11">
+      <path d="M2 2h5v5H2zM9 2h5v5H9zM2 9h5v5H2zM11.5 9v6M9 11.5h6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    YOUR REFERRAL CODE
+  </div>
+  <div class="rcb-code-wrap">
+    <div class="rcb-scanline"></div>
+    <div class="rcb-glitch-wrap">
+      <div class="rcb-code" id="referralCodeVal">Loading...</div>
+    </div>
+    <button class="rcb-copy-btn" id="copyCodeBtn">
+      <svg viewBox="0 0 16 16" fill="none" width="13" height="13">
+        <rect x="5" y="5" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="1.3"/>
+        <path d="M3 11V3h8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span id="copyCodeLabel">Copy</span>
+    </button>
+  </div>
+  <div class="rcb-share-row">
+    <div class="rcb-share-hint">I-share ang code mo para kumita!</div>
+    <button class="rcb-share-btn" id="shareCodeBtn">
+      <svg viewBox="0 0 16 16" fill="none" width="12" height="12">
+        <circle cx="12" cy="3" r="1.8" stroke="currentColor" stroke-width="1.2"/>
+        <circle cx="12" cy="13" r="1.8" stroke="currentColor" stroke-width="1.2"/>
+        <circle cx="4" cy="8" r="1.8" stroke="currentColor" stroke-width="1.2"/>
+        <path d="M10.3 4l-4.6 2.5M10.3 12L5.7 9.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+      </svg>
+      Share
+    </button>
+  </div>
+</div>
+
+      <!-- View All Button -->
+      <button class="ref-expand-btn" id="refExpandBtn">
+        <svg viewBox="0 0 20 20" fill="none" width="14" height="14">
+          <path d="M5 8l5 5 5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span id="refExpandLabel">View All</span>
+      </button>
+
+      <!-- Expanded Panel (hidden by default) -->
+      <div class="referral-expanded" id="referralExpanded">
+
+        <!-- Rank Row -->
+        <div class="ref-rank-row" style="margin-top:14px;">
+          <div class="ref-rank-badge ref-rank-badge--member" id="refRankBadge">
+            <span class="ref-rank-orbit-dot"></span>
+            <span class="ref-rank-icon" id="refRankIcon">
+              <!-- Member icon: planet with ring -->
+              <svg viewBox="0 0 18 18" fill="none" width="16" height="16">
+                <circle cx="9" cy="9" r="4.5" fill="url(#mi1)" stroke="rgba(150,180,255,0.4)" stroke-width="0.5"/>
+                <ellipse cx="9" cy="9" rx="8" ry="3" stroke="rgba(120,160,255,0.55)" stroke-width="1" fill="none"/>
+                <defs>
+                  <radialGradient id="mi1" cx="35%" cy="35%">
+                    <stop offset="0%" stop-color="#c0d8ff"/>
+                    <stop offset="100%" stop-color="#3a5acc"/>
+                  </radialGradient>
+                </defs>
+              </svg>
+            </span>
+            <span class="ref-rank-name-text" id="refRankName">Member</span>
+          </div>
+          <div class="ref-rank-progress-wrap">
+            <div class="ref-rank-progress-label">
+              <span id="refRankProgressLabel">0 / 50 invites to Premium</span>
+              <span id="refRankProgressPct">0%</span>
+            </div>
+            <div class="ref-rank-progress-track">
+              <div class="ref-rank-progress-fill ref-rank-progress-fill--member" id="refRankProgressBar" style="width:0%">
+
+                <!-- SVG Orbit trail (horizontal, left of rocket) -->
+                <svg class="ref-rank-flame" viewBox="0 0 36 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <!-- Main energy beam core -->
+                  <ellipse cx="18" cy="6" rx="17" ry="2.2" fill="url(#trail1)" opacity="0.9"/>
+                  <!-- Outer glow halo -->
+                  <ellipse cx="18" cy="6" rx="17" ry="4" fill="url(#trailGlow)" opacity="0.4"/>
+                  <!-- Bright tip near rocket -->
+                  <ellipse cx="33" cy="6" rx="3" ry="2" fill="rgba(200,230,255,0.95)"/>
+                  <!-- Particle dots -->
+                  <circle cx="8"  cy="5" r="0.8" fill="rgba(180,210,255,0.8)"/>
+                  <circle cx="14" cy="7" r="0.6" fill="rgba(180,210,255,0.6)"/>
+                  <circle cx="22" cy="4.5" r="0.7" fill="rgba(200,225,255,0.7)"/>
+                  <circle cx="28" cy="7.5" r="0.5" fill="rgba(160,200,255,0.6)"/>
+                  <defs>
+                    <linearGradient id="trail1" x1="0" y1="6" x2="36" y2="6" gradientUnits="userSpaceOnUse">
+                      <stop offset="0%"   stop-color="#4da6ff" stop-opacity="0"/>
+                      <stop offset="55%"  stop-color="#7ab8ff" stop-opacity="0.85"/>
+                      <stop offset="100%" stop-color="#c8e8ff" stop-opacity="1"/>
+                    </linearGradient>
+                    <linearGradient id="trailGlow" x1="0" y1="6" x2="36" y2="6" gradientUnits="userSpaceOnUse">
+                      <stop offset="0%"   stop-color="#4da6ff" stop-opacity="0"/>
+                      <stop offset="70%"  stop-color="#4da6ff" stop-opacity="0.6"/>
+                      <stop offset="100%" stop-color="#a0d0ff" stop-opacity="0.8"/>
+                    </linearGradient>
+                  </defs>
+                </svg>
+
+                <!-- SVG Rocket — pointing RIGHT → -->
+                <span class="ref-rank-rocket" id="refRankRocket">
+                  <svg viewBox="0 0 28 20" fill="none" width="28" height="20" xmlns="http://www.w3.org/2000/svg">
+                    <!-- Main body — horizontal capsule pointing right -->
+                    <path d="M6 10 C6 10 10 3 20 3 L25 7 L25 13 L20 17 C10 17 6 10 6 10Z"
+                          fill="url(#rb1)" stroke="rgba(180,220,255,0.5)" stroke-width="0.5"/>
+                    <!-- Cockpit window -->
+                    <ellipse cx="19" cy="10" rx="3" ry="3.2"
+                             fill="url(#rw1)" stroke="rgba(150,200,255,0.6)" stroke-width="0.5"/>
+                    <!-- Top fin -->
+                    <path d="M14 3 L11 0 L8 3" fill="rgba(160,200,240,0.75)" stroke="rgba(140,185,230,0.4)" stroke-width="0.4"/>
+                    <!-- Bottom fin -->
+                    <path d="M14 17 L11 20 L8 17" fill="rgba(160,200,240,0.75)" stroke="rgba(140,185,230,0.4)" stroke-width="0.4"/>
+                    <!-- Engine nozzle left -->
+                    <path d="M6 10 L3 8 L1 10 L3 12 Z" fill="rgba(120,160,210,0.8)" stroke="rgba(100,150,200,0.4)" stroke-width="0.4"/>
+                    <!-- Body highlight -->
+                    <path d="M10 4.5 C13 3.5 18 3.2 22 5" stroke="rgba(255,255,255,0.35)" stroke-width="1" stroke-linecap="round"/>
+                    <defs>
+                      <linearGradient id="rb1" x1="3" y1="3" x2="25" y2="17" gradientUnits="userSpaceOnUse">
+                        <stop offset="0%"   stop-color="#c8e0ff"/>
+                        <stop offset="40%"  stop-color="#80b0f0"/>
+                        <stop offset="100%" stop-color="#3060c0"/>
+                      </linearGradient>
+                      <radialGradient id="rw1" cx="40%" cy="35%">
+                        <stop offset="0%"   stop-color="#e8f4ff"/>
+                        <stop offset="60%"  stop-color="#90c8ff"/>
+                        <stop offset="100%" stop-color="#3880d0"/>
+                      </radialGradient>
+                    </defs>
+                  </svg>
+                </span>
+
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Compact Stats -->
+        <div class="referral-compact-stats">
+          <div class="rcs-item">
+            <span class="rcs-label">Total Earned</span>
+            <span class="rcs-val rcs-val--gold" id="refCompactEarned">&#8369;0.00</span>
+          </div>
+          <div class="rcs-divider"></div>
+          <div class="rcs-item">
+            <span class="rcs-label">My Team</span>
+            <span class="rcs-val rcs-val--purple" id="refCompactTeam">0 members</span>
+          </div>
+          <div class="rcs-divider"></div>
+          <div class="rcs-item">
+            <span class="rcs-label">My Rate</span>
+            <span class="rcs-val rcs-val--blue" id="refCompactRate">25%</span>
+          </div>
+        </div>
+
+        <!-- Commission Levels -->
+        <div class="ref-levels-wrap">
+          <div class="ref-levels-title">
+            Commission Rates — <span id="refLevelsRankName">Member</span>
+          </div>
+          <div class="ref-levels-grid">
+  <div class="ref-level-card ref-level-card--1" id="refLevelCard1">
+    <div class="ref-level-badge">L1</div>
+    <div class="ref-level-pct" id="refLvl1Pct">25%</div>
+    <div class="ref-level-desc">Direct invites mo</div>
+    <div class="ref-level-count" id="refLvl1Count">0 members</div>
+  </div>
+  <div class="ref-level-card ref-level-card--2" id="refLevelCard2">
+    <div class="ref-level-badge">L2</div>
+    <div class="ref-level-pct" id="refLvl2Pct">10%</div>
+    <div class="ref-level-desc">Invites ng iyong L1</div>
+    <div class="ref-level-count" id="refLvl2Count">0 members</div>
+  </div>
+  <div class="ref-level-card ref-level-card--3" id="refLevelCard3">
+    <div class="ref-level-badge">L3</div>
+    <div class="ref-level-pct" id="refLvl3Pct">5%</div>
+    <div class="ref-level-desc">Invites ng iyong L2</div>
+    <div class="ref-level-count" id="refLvl3Count">0 members</div>
+  </div>
+</div>
+</div>
+          <!-- Earnings Breakdown -->
+        <div class="ref-earnings-wrap">
+          <div class="ref-section-title">Earnings Breakdown</div>
+          <div class="ref-earnings-grid">
+            <div class="ref-earn-card">
+              <div class="ref-earn-label">Level 1</div>
+              <div class="ref-earn-val ref-earn-val--1" id="refEarnL1">&#8369;0.00</div>
+            </div>
+            <div class="ref-earn-card">
+              <div class="ref-earn-label">Level 2</div>
+              <div class="ref-earn-val ref-earn-val--2" id="refEarnL2">&#8369;0.00</div>
+            </div>
+            <div class="ref-earn-card">
+              <div class="ref-earn-label">Level 3</div>
+              <div class="ref-earn-val ref-earn-val--3" id="refEarnL3">&#8369;0.00</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DASH INTRO + PRODUCTS -->
+    <div class="dash-intro">
+      <p class="dash-greeting">Hello! <span id="greetUser">—</span></p>
+      <h1>Our Packages</h1>
+      <p>Pumili ng package na bagay sa iyo.</p>
+    </div>
+    <div class="product-shelf-wrap">
+      <div class="product-shelf" id="productShelf"></div>
+    </div>
+
+  </main>
+
+  <footer class="dash-footer">
+    <div class="badge-row">
+      <div class="badge-slot"><img src="assets/badges/dti.png" alt="DTI" onerror="this.style.display='none';this.parentElement.classList.add('empty')"></div>
+      <div class="badge-slot"><img src="assets/badges/dole.png" alt="DOLE" onerror="this.style.display='none';this.parentElement.classList.add('empty')"></div>
+      <div class="badge-slot"><img src="assets/badges/pilipinas.png" alt="Pilipinas" onerror="this.style.display='none';this.parentElement.classList.add('empty')"></div>
+      <div class="badge-slot"><img src="assets/badges/pinoy.png" alt="Pinoy" onerror="this.style.display='none';this.parentElement.classList.add('empty')"></div>
+    </div>
+    <p>&copy; <span id="footerYear"></span> ORB-X PH. All rights reserved.</p>
+  </footer>
+
+  <!-- ORDER MODAL -->
+  <div class="modal-overlay" id="orderOverlay">
+    <div class="modal-box">
+      <div class="modal-head">
+        <span>Order Summary</span>
+        <button class="modal-close" id="orderClose">&times;</button>
+      </div>
+      <div class="modal-body" id="orderBody"></div>
+    </div>
+  </div>
+  
+<!-- LEVEL TEAM MODAL -->
+<div class="modal-overlay" id="levelTeamOverlay">
+  <div class="modal-box modal-box--wide">
+    <div class="modal-head">
+      <span id="levelTeamTitle">Level 1 Team</span>
+      <button class="modal-close" id="levelTeamClose">&times;</button>
+    </div>
+    <div class="modal-body" id="levelTeamBody">
+      <p style="color:var(--muted);text-align:center;padding:24px 0;">Naglo-load...</p>
+    </div>
+  </div>
+</div>
+  
+<!-- PRODUCT DETAILS MODAL -->
+<div class="modal-overlay" id="productDetailsOverlay">
+  <div class="modal-box">
+    <div class="modal-head">
+      <span id="pdTierLabel">Package Details</span>
+      <button class="modal-close" id="productDetailsClose">&times;</button>
+    </div>
+    <div class="modal-body" id="productDetailsBody"></div>
+  </div>
+</div>
+
+  <!-- ALL ORDERS MODAL -->
+  <div class="modal-overlay" id="allOrdersOverlay">
+    <div class="modal-box modal-box--wide">
+      <div class="modal-head modal-head--orders">
+        <div class="modal-head-title">
+          <svg class="modal-head-icon" viewBox="0 0 20 20" fill="none"><rect x="3" y="2" width="14" height="16" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M7 6h6M7 10h6M7 14h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <div>
+            <div class="modal-head-eyebrow">Account</div>
+            <span class="modal-head-label">My Orders</span>
+          </div>
+        </div>
+        <button class="modal-close" id="allOrdersClose">&times;</button>
+      </div>
+      <div class="modal-body" id="allOrdersBody">
+        <p style="color:var(--muted);text-align:center;padding:24px 0;">Naglo-load...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- WITHDRAW MODAL -->
+  <div class="modal-overlay" id="withdrawOverlay">
+    <div class="modal-box">
+      <div class="modal-head">
+        <div class="modal-head-title" style="gap:10px;">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style="color:var(--gold)">
+            <rect x="2" y="4" width="16" height="12" rx="2" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M6 10h8M11 8l2 2-2 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span>Request Withdrawal</span>
+        </div>
+        <button class="modal-close" id="withdrawClose">&times;</button>
+      </div>
+      <div class="modal-body" id="withdrawBody">
+        <p style="color:var(--muted);text-align:center;padding:24px 0;">Naglo-load...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROFILE DRAWER OVERLAY -->
+  <div class="profile-drawer-overlay" id="profileDrawerOverlay"></div>
+
+  <!-- PROFILE DRAWER -->
+  <div class="profile-drawer" id="profileDrawer">
+    <div class="profile-drawer-inner">
+      <div class="drawer-head">
+        <div class="drawer-head-title">My <span>Profile</span></div>
+        <button class="drawer-close-btn" id="drawerCloseBtn">&times;</button>
+      </div>
+      <div class="drawer-avatar-section">
+        <div class="drawer-avatar-circle" id="drawerAvatarCircle">
+          <img id="drawerAvatarImg" src="" alt="" style="display:none;">
+          <span id="drawerAvatarLetter">?</span>
+          <div class="drawer-avatar-overlay">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            <span>Upload</span>
+          </div>
+        </div>
+        <input type="file" id="drawerPicInput" accept="image/*" style="display:none;">
+        <div class="drawer-username-display" id="drawerUsernameDisplay">—</div>
+        <div class="drawer-phone-display" id="drawerPhoneDisplay">—</div>
+      </div>
+      <div class="drawer-section">
+        <div class="drawer-section-label">Account Info</div>
+        <div class="drawer-field">
+          <label class="drawer-label">Phone Number</label>
+          <input class="drawer-input" id="drawerPhone" type="tel" disabled>
+          <div class="drawer-hint">Hindi pwedeng baguhin ang number.</div>
+        </div>
+        <div class="drawer-field">
+          <label class="drawer-label">Gmail Address</label>
+          <input class="drawer-input" id="drawerGmail" type="email" placeholder="yourname@gmail.com">
+        </div>
+      </div>
+      <div class="drawer-section" style="margin-top:16px;">
+        <div class="drawer-section-label">Change Password</div>
+        <div class="drawer-field">
+          <label class="drawer-label">Current Password</label>
+          <input class="drawer-input" id="drawerCurPass" type="password" placeholder="Enter current password">
+        </div>
+        <div class="drawer-field">
+          <label class="drawer-label">New Password</label>
+          <input class="drawer-input" id="drawerNewPass" type="password" placeholder="Min. 6 characters">
+        </div>
+        <div class="drawer-field">
+          <label class="drawer-label">Confirm New Password</label>
+          <input class="drawer-input" id="drawerNewPass2" type="password" placeholder="Ulitin ang new password">
+        </div>
+      </div>
+      <div class="drawer-error" id="drawerError"></div>
+      <div class="drawer-success" id="drawerSuccess">✓ Profile updated!</div>
+      <button class="drawer-save-btn" id="drawerSaveBtn">
+        <svg viewBox="0 0 20 20" fill="none" width="15" height="15">
+          <path d="M17 3H5a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V5l-2-2z" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M7 3v4h7V3M7 13h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        Save Changes
+      </button>
+    </div>
+  </div>
+
+  <!-- SETTINGS MODAL -->
+  <div class="modal-overlay" id="settingsOverlay">
+    <div class="modal-box">
+      <div class="modal-head">
+        <div class="modal-head-title" style="gap:10px;">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style="color:var(--blue)"><circle cx="10" cy="10" r="2.6" stroke="currentColor" stroke-width="1.5"/><path d="M10 2.5v2.2M10 15.3v2.2M3.7 5.7l1.5 1.5M14.8 12.8l1.5 1.5M2.5 10h2.2M15.3 10h2.2M3.7 14.3l1.5-1.5M14.8 7.2l1.5-1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <span>Settings</span>
+        </div>
+        <button class="modal-close" id="settingsClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="drawer-section-label">Theme</div>
+        <div class="theme-picker-grid" id="themePicker">
+          <div class="theme-pill" data-theme-val="dark">
+            <div class="theme-swatch" style="background:linear-gradient(135deg,#060818,#1a1f4a);"></div>
+            <div class="theme-pill-label">Dark</div>
+          </div>
+          <div class="theme-pill" data-theme-val="light">
+            <div class="theme-swatch" style="background:linear-gradient(135deg,#f0f4ff,#dde6ff);"></div>
+            <div class="theme-pill-label">Light</div>
+          </div>
+          <div class="theme-pill" data-theme-val="aurora">
+            <div class="theme-swatch" style="background:linear-gradient(135deg,#2a0f35,#ff85c8);"></div>
+            <div class="theme-pill-label">Aurora</div>
+          </div>
+          <div class="theme-pill" data-theme-val="ranger">
+            <div class="theme-swatch" style="background:linear-gradient(135deg,#0d1208,#7ec850);"></div>
+            <div class="theme-pill-label">Ranger</div>
+          </div>
+          <div class="theme-pill" data-theme-val="hacker">
+            <div class="theme-swatch" style="background:#000;border:2px solid #00ff46;box-shadow:0 0 8px rgba(0,255,70,0.4);"></div>
+            <div class="theme-pill-label">Hacker</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CUSTOMER SERVICE MODAL -->
+  <div class="modal-overlay" id="csOverlay">
+    <div class="modal-box">
+      <div class="modal-head">
+        <div class="modal-head-title" style="gap:10px;">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style="color:var(--blue)"><path d="M3 11v-1a7 7 0 0114 0v1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><rect x="2.3" y="11" width="3.4" height="4.6" rx="1.2" stroke="currentColor" stroke-width="1.5"/><rect x="14.3" y="11" width="3.4" height="4.6" rx="1.2" stroke="currentColor" stroke-width="1.5"/><path d="M15.5 15.6v.4a3 3 0 01-3 3h-1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <span>Customer Service</span>
+        </div>
+        <button class="modal-close" id="csClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="margin-bottom:14px;">Kontakin kami sa alinman sa mga channel sa ibaba. Sagutin namin agad ang inquiries mo.</p>
+        <div class="cs-contact-list">
+          <a href="tel:+639555504904" class="cs-contact-item">
+            <div class="cs-contact-icon">
+              <svg viewBox="0 0 20 20" fill="none"><path d="M5 3h2.2l1 4-1.6 1c.9 1.9 2.5 3.5 4.4 4.4l1-1.6 4 1V14a2 2 0 01-2 2C9.2 16 4 10.8 4 6a2 2 0 011-1.7" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="cs-contact-info">
+              <div class="cs-contact-label">Mobile / CP Number</div>
+              <div class="cs-contact-value">+639555504904</div>
+            </div>
+          </a>
+          <a href="https://t.me/orbxph" target="_blank" class="cs-contact-item">
+            <div class="cs-contact-icon">
+              <svg viewBox="0 0 20 20" fill="none"><path d="M2.5 10.3l14-6c.6-.3 1.2.2 1 .9l-2.4 12c-.1.6-.8.9-1.3.5l-3.4-2.6-1.9 1.8c-.4.4-1 .1-1-.4l.1-3.2 6.4-6.3-7.9 5.2-3-1c-.6-.2-.7-1.1.4-.9z" stroke="currentColor" stroke-width="1" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="cs-contact-info">
+              <div class="cs-contact-label">Telegram</div>
+              <div class="cs-contact-value">@orbxph</div>
+            </div>
+          </a>
+          <a href="https://wa.me/639462175612" target="_blank" class="cs-contact-item">
+            <div class="cs-contact-icon">
+              <svg viewBox="0 0 20 20" fill="none"><path d="M10 3a7 7 0 00-6 10.6L3 17l3.6-1A7 7 0 1010 3z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M7.3 8.6c.3 2 2.1 3.8 4.1 4.1.5.1 1-.2 1.1-.7l.2-.9-1.9-.6-.6.6c-.7-.4-1.5-1.2-1.9-1.9l.6-.6-.6-1.9-.9.2c-.5.1-.8.6-.7 1.1z" fill="currentColor"/></svg>
+            </div>
+            <div class="cs-contact-info">
+              <div class="cs-contact-label">WhatsApp</div>
+              <div class="cs-contact-value">+63 9462175612</div>
+            </div>
+          </a>
+          <a href="https://www.facebook.com/profile.php?id=61584023246393" target="_blank" class="cs-contact-item">
+            <div class="cs-contact-icon">
+              <svg viewBox="0 0 20 20" fill="none"><path d="M10 3C5.6 3 2 6.3 2 10.4c0 2.4 1.3 4.6 3.4 6V19l2.5-1.4c.7.2 1.4.3 2.1.3 4.4 0 8-3.3 8-7.5S14.4 3 10 3z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M6.5 11l2.3-2.4L11 10l2.5-2.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="cs-contact-info">
+              <div class="cs-contact-label">Messenger</div>
+              <div class="cs-contact-value">ORBX-PH</div>
+            </div>
+          </a>
+        </div>
+        <div class="cs-admin-note">
+          <svg viewBox="0 0 16 16" fill="none" width="13" height="13" style="flex-shrink:0;margin-top:2px;"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.2"/><path d="M8 5v3.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="8" cy="11" r="0.7" fill="currentColor"/></svg>
+          <span>Ang opisyal na admin account ay <strong>ORBX-PH (Admin)</strong>. Mag-ingat sa nagpapanggap na admin.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RANK DETAILS MODAL -->
+  <div class="rank-modal-overlay" id="rankModalOverlay">
+    <div class="rank-modal-sheet" id="rankModalSheet">
+      <div class="rank-modal-stars"></div>
+      <div class="rank-modal-handle"></div>
+      <div class="rank-modal-head">
+        <div class="rank-modal-title">RANK SYSTEM</div>
+        <button class="rank-modal-close" id="rankModalClose">&times;</button>
+      </div>
+      <!-- Orbit node path -->
+      <div class="rank-orbit-path" id="rankOrbitPath"></div>
+      <!-- Detail panel -->
+      <div id="rankDetailPanel"></div>
+    </div>
+  </div>
+
+<script src="js/dashboard.js"></script>
+<script>
+// ── Helpers ───────────────────────────────────────────────────
+function timeAgo(iso){
+  const d=Math.floor((Date.now()-new Date(iso).getTime())/1000);
+  if(d<60) return 'kanina lang';
+  if(d<3600) return Math.floor(d/60)+'m ago';
+  if(d<86400) return Math.floor(d/3600)+'h ago';
+  return Math.floor(d/86400)+'d ago';
+}
+
+// ══════════════════════════════════════════════════════════════
+//  PROFILE DRAWER
+// ══════════════════════════════════════════════════════════════
+const THEMES = ['dark','light','aurora','ranger','hacker'];
+const THEME_ICONS = { dark:'🌙', light:'☀️', aurora:'🌸', ranger:'🌿', hacker:'💻' };
+
+function profileStorageKey(field){ return 'orbx_userprofile_' + currentUser + '_' + field; }
+function getUserProfile(){
+  return { gmail: localStorage.getItem(profileStorageKey('gmail')) || '', photo: localStorage.getItem(profileStorageKey('photo')) || '' };
+}
+function saveUserProfile(data){
+  if(data.gmail !== undefined) localStorage.setItem(profileStorageKey('gmail'), data.gmail);
+  if(data.photo !== undefined) localStorage.setItem(profileStorageKey('photo'), data.photo);
+}
+
+function applyThemeFull(t){
+  if(t === 'dark'){ document.body.removeAttribute('data-theme'); }
+  else { document.body.setAttribute('data-theme', t); }
+  localStorage.setItem('orbx_theme', t);
+  const themeIcon = document.getElementById('themeIcon');
+  if(themeIcon) themeIcon.textContent = THEME_ICONS[t] || '🌙';
+  document.querySelectorAll('.theme-pill').forEach(p => p.classList.toggle('active', p.dataset.themeVal === t));
+}
+
+function updateDrawerAvatar(){
+  const p = getUserProfile();
+  const img = document.getElementById('drawerAvatarImg');
+  const letter = document.getElementById('drawerAvatarLetter');
+  if(p.photo){ img.src=p.photo; img.style.display='block'; letter.style.display='none'; }
+  else { img.style.display='none'; letter.style.display=''; letter.textContent=currentUser?currentUser.charAt(0).toUpperCase():'?'; }
+}
+
+function openProfileDrawer(){
+  const p = getUserProfile();
+  document.getElementById('drawerUsernameDisplay').textContent = currentUser || '—';
+  document.getElementById('drawerPhone').value = localStorage.getItem('orbx_user_phone') || '—';
+  document.getElementById('drawerPhoneDisplay').textContent = localStorage.getItem('orbx_user_phone') || '—';
+  document.getElementById('drawerGmail').value = p.gmail;
+  document.getElementById('drawerCurPass').value = '';
+  document.getElementById('drawerNewPass').value = '';
+  document.getElementById('drawerNewPass2').value = '';
+  document.getElementById('drawerError').style.display = 'none';
+  document.getElementById('drawerSuccess').style.display = 'none';
+  updateDrawerAvatar();
+  document.getElementById('profileDrawerOverlay').classList.add('show');
+  document.getElementById('profileDrawer').classList.add('open');
+}
+
+function closeProfileDrawer(){
+  document.getElementById('profileDrawer').classList.remove('open');
+  document.getElementById('profileDrawerOverlay').classList.remove('show');
+}
+
+document.getElementById('navProfileLink').addEventListener('click', e => {
+  e.preventDefault();
+  document.getElementById('navDrawer').classList.remove('open');
+  document.getElementById('navOverlay').classList.remove('show');
+  setTimeout(openProfileDrawer, 150);
+});
+document.getElementById('drawerCloseBtn').addEventListener('click', closeProfileDrawer);
+document.getElementById('profileDrawerOverlay').addEventListener('click', closeProfileDrawer);
+
+document.getElementById('drawerAvatarCircle').addEventListener('click', () => document.getElementById('drawerPicInput').click());
+document.getElementById('drawerPicInput').addEventListener('change', e => {
+  const file = e.target.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => { saveUserProfile({ photo: ev.target.result }); updateDrawerAvatar(); };
+  reader.readAsDataURL(file);
+});
+
+document.querySelectorAll('.theme-pill').forEach(pill => {
+  pill.addEventListener('click', () => applyThemeFull(pill.dataset.themeVal));
+});
+
+document.getElementById('themeToggle').addEventListener('click', () => {
+  const cur = localStorage.getItem('orbx_theme') || 'dark';
+  const idx = THEMES.indexOf(cur);
+  applyThemeFull(THEMES[(idx + 1) % THEMES.length]);
+});
+
+document.getElementById('drawerSaveBtn').addEventListener('click', async () => {
+  const errEl = document.getElementById('drawerError');
+  const successEl = document.getElementById('drawerSuccess');
+  errEl.style.display = 'none'; successEl.style.display = 'none';
+  const gmail = document.getElementById('drawerGmail').value.trim();
+  const curPass = document.getElementById('drawerCurPass').value;
+  const newPass = document.getElementById('drawerNewPass').value;
+  const newPass2 = document.getElementById('drawerNewPass2').value;
+  saveUserProfile({ gmail });
+  if(curPass || newPass || newPass2){
+    if(!curPass){ errEl.textContent='I-enter ang current password.'; errEl.style.display='block'; return; }
+    if(!newPass || newPass.length < 6){ errEl.textContent='Minimum 6 characters ang new password.'; errEl.style.display='block'; return; }
+    if(newPass !== newPass2){ errEl.textContent='Hindi magkatugma ang new password.'; errEl.style.display='block'; return; }
+    try{
+      const r = await fetch('/api/change-password',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ phone:localStorage.getItem('orbx_user_phone')||'', currentPassword:curPass, newPassword:newPass }) });
+      const d = await r.json();
+      if(!r.ok){ errEl.textContent=d.error||'Hindi na-update ang password.'; errEl.style.display='block'; return; }
+    } catch(e){ errEl.textContent='Hindi makonekta sa server.'; errEl.style.display='block'; return; }
+  }
+  successEl.style.display = 'block';
+  document.getElementById('drawerCurPass').value = '';
+  document.getElementById('drawerNewPass').value = '';
+  document.getElementById('drawerNewPass2').value = '';
+  setTimeout(() => successEl.style.display = 'none', 3000);
+});
+
+// ── Settings Modal ────────────────────────────────────────────
+function openSettingsModal(){
+  const cur = localStorage.getItem('orbx_theme') || 'dark';
+  document.querySelectorAll('.theme-pill').forEach(p => p.classList.toggle('active', p.dataset.themeVal === cur));
+  document.getElementById('settingsOverlay').classList.add('show');
+}
+document.getElementById('navSettingsLink').addEventListener('click', e => {
+  e.preventDefault();
+  document.getElementById('navDrawer').classList.remove('open');
+  document.getElementById('navOverlay').classList.remove('show');
+  setTimeout(openSettingsModal, 150);
+});
+document.getElementById('settingsClose').addEventListener('click', () => document.getElementById('settingsOverlay').classList.remove('show'));
+document.getElementById('settingsOverlay').addEventListener('click', e => { if(e.target.id==='settingsOverlay') e.currentTarget.classList.remove('show'); });
+
+// ── Customer Service Modal ────────────────────────────────────
+document.getElementById('navCsLink').addEventListener('click', e => {
+  e.preventDefault();
+  document.getElementById('navDrawer').classList.remove('open');
+  document.getElementById('navOverlay').classList.remove('show');
+  setTimeout(() => document.getElementById('csOverlay').classList.add('show'), 150);
+});
+document.getElementById('csClose').addEventListener('click', () => document.getElementById('csOverlay').classList.remove('show'));
+document.getElementById('csOverlay').addEventListener('click', e => { if(e.target.id==='csOverlay') e.currentTarget.classList.remove('show'); });
+
+// ══════════════════════════════════════════════════════════════
+//  REFERRAL — with Ranks
+// ══════════════════════════════════════════════════════════════
+let refExpanded = false;
+
+const RANKS_CLIENT = [
+  { name:'SVIP',    minInvites:300, next:null, icon:'💎', cls:'svip',    rates:[40,18,10] },
+  { name:'VIP',     minInvites:150, next:300,  icon:'👑', cls:'vip',     rates:[35,15,8]  },
+  { name:'Premium', minInvites:50,  next:150,  icon:'🌟', cls:'premium', rates:[30,12,6]  },
+  { name:'Member',  minInvites:0,   next:50,   icon:'⭐', cls:'member',  rates:[25,10,5]  },
+];
+
+function getClientRank(qualifiedL1){
+  return RANKS_CLIENT.find(r => qualifiedL1 >= r.minInvites) || RANKS_CLIENT[RANKS_CLIENT.length - 1];
+}
+
+function pesoRef(n){
+  return '&#8369;'+Number(n||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+
+function timeAgoRef(iso){
+  const d=Math.floor((Date.now()-new Date(iso).getTime())/1000);
+  if(d<60) return 'kanina lang';
+  if(d<3600) return Math.floor(d/60)+'m ago';
+  if(d<86400) return Math.floor(d/3600)+'h ago';
+  return Math.floor(d/86400)+'d ago';
+}
+
+async function loadReferral(){
+  try{
+    const data    = await fetch('/api/referral/'+encodeURIComponent(currentUser)).then(r=>r.json());
+    const invites = data.invites || [];
+
+    const codeEl = document.getElementById('referralCodeVal');
+codeEl.textContent = data.code || '—';
+codeEl.setAttribute('data-code', data.code || '—');
+    fitReferralCode();
+    const qualifiedL1 = invites.filter(i => !i.level || i.level === 1).length;
+    userL1Count = qualifiedL1; // store for rank modal
+    const rank = getClientRank(qualifiedL1);
+
+    // Rank badge + icon
+    const badgeEl = document.getElementById('refRankBadge');
+    badgeEl.className = `ref-rank-badge ref-rank-badge--${rank.cls}`;
+    document.getElementById('refRankName').textContent = rank.name;
+    const navRankLabel = document.getElementById('navRankLabel');
+if (navRankLabel) {
+  navRankLabel.textContent = rank.name;
+  navRankLabel.className = `nav-rank-card-name nav-rank-card-name--${rank.cls}`;
+}
+    // Rank icons — SVG per rank (orbit-themed)
+    const rankIcons = {
+      member:  `<svg viewBox="0 0 18 18" fill="none" width="16" height="16"><circle cx="9" cy="9" r="4.5" fill="url(#mi1)" stroke="rgba(150,180,255,0.4)" stroke-width="0.5"/><ellipse cx="9" cy="9" rx="8" ry="3" stroke="rgba(120,160,255,0.55)" stroke-width="1" fill="none"/><defs><radialGradient id="mi1" cx="35%" cy="35%"><stop offset="0%" stop-color="#c0d8ff"/><stop offset="100%" stop-color="#3a5acc"/></radialGradient></defs></svg>`,
+      premium: `<svg viewBox="0 0 18 18" fill="none" width="16" height="16"><circle cx="9" cy="9" r="5" fill="url(#pi1)" stroke="rgba(200,160,255,0.5)" stroke-width="0.5"/><ellipse cx="9" cy="9" rx="8.2" ry="2.8" stroke="rgba(180,130,255,0.7)" stroke-width="1.1" fill="none"/><circle cx="14.5" cy="6.5" r="1.2" fill="rgba(220,190,255,0.9)"/><defs><radialGradient id="pi1" cx="35%" cy="35%"><stop offset="0%" stop-color="#e0ccff"/><stop offset="100%" stop-color="#7030c0"/></radialGradient></defs></svg>`,
+      vip:     `<svg viewBox="0 0 18 18" fill="none" width="16" height="16"><circle cx="9" cy="9" r="5" fill="url(#vi1)" stroke="rgba(255,210,80,0.5)" stroke-width="0.5"/><ellipse cx="9" cy="9" rx="8.2" ry="2.8" stroke="rgba(255,200,87,0.75)" stroke-width="1.2" fill="none"/><circle cx="14.5" cy="6.5" r="1.4" fill="rgba(255,230,100,0.95)"/><defs><radialGradient id="vi1" cx="35%" cy="35%"><stop offset="0%" stop-color="#fff0b0"/><stop offset="100%" stop-color="#c07800"/></radialGradient></defs></svg>`,
+      svip:    `<svg viewBox="0 0 18 18" fill="none" width="16" height="16"><circle cx="9" cy="9" r="5.2" fill="url(#si1)" stroke="rgba(255,180,60,0.6)" stroke-width="0.5"/><ellipse cx="9" cy="9" rx="8.4" ry="2.6" stroke="url(#si2)" stroke-width="1.3" fill="none"/><circle cx="15" cy="6" r="1.6" fill="white" opacity="0.9"/><defs><radialGradient id="si1" cx="35%" cy="35%"><stop offset="0%" stop-color="#ffffff"/><stop offset="50%" stop-color="#ffb347"/><stop offset="100%" stop-color="#c8b0ff"/></radialGradient><linearGradient id="si2" x1="0" y1="9" x2="18" y2="9" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#4da6ff"/><stop offset="50%" stop-color="#ffc857"/><stop offset="100%" stop-color="#ff4e00"/></linearGradient></defs></svg>`,
+    };
+    const iconEl = document.getElementById('refRankIcon');
+    if(iconEl) iconEl.innerHTML = rankIcons[rank.cls] || rankIcons.member;
+
+    // Progress bar
+    const barEl    = document.getElementById('refRankProgressBar');
+    const labelEl  = document.getElementById('refRankProgressLabel');
+    const pctEl    = document.getElementById('refRankProgressPct');
+
+    if(rank.next === null){
+      labelEl.textContent = 'Maximum rank achieved!';
+      pctEl.textContent   = '100%';
+      barEl.style.width   = '100%';
+      barEl.className     = 'ref-rank-progress-fill ref-rank-progress-fill--svip';
+    } else {
+      const progress  = Math.min(((qualifiedL1 - rank.minInvites) / (rank.next - rank.minInvites)) * 100, 100);
+      const nextRank  = RANKS_CLIENT.find(r => r.minInvites === rank.next);
+      labelEl.textContent = `${qualifiedL1} / ${rank.next} invites to ${nextRank ? nextRank.name : ''}`;
+      pctEl.textContent   = Math.floor(progress) + '%';
+      setTimeout(() => { barEl.style.width = Math.max(progress, 6) + '%'; }, 120);
+      barEl.className     = `ref-rank-progress-fill ref-rank-progress-fill--${rank.cls}`;
+    }
+
+    // Compact stats
+    const l1Earn = invites.filter(i=>!i.level||i.level===1).reduce((s,i)=>s+(i.reward||0),0);
+    const l2Earn = invites.filter(i=>i.level===2).reduce((s,i)=>s+(i.reward||0),0);
+    const l3Earn = invites.filter(i=>i.level===3).reduce((s,i)=>s+(i.reward||0),0);
+    const totalEarned = l1Earn + l2Earn + l3Earn;
+
+    document.getElementById('refCompactEarned').innerHTML = pesoRef(totalEarned);
+    document.getElementById('refCompactTeam').textContent  = invites.length + (invites.length===1?' member':' members');
+    document.getElementById('refCompactRate').textContent  = rank.rates[0] + '%';
+
+    // Commission levels
+    document.getElementById('refLevelsRankName').textContent = rank.name;
+    document.getElementById('refLvl1Pct').textContent = rank.rates[0] + '%';
+    document.getElementById('refLvl2Pct').textContent = rank.rates[1] + '%';
+    document.getElementById('refLvl3Pct').textContent = rank.rates[2] + '%';
+
+    // Earnings breakdown
+    document.getElementById('refEarnL1').innerHTML = pesoRef(l1Earn);
+    document.getElementById('refEarnL2').innerHTML = pesoRef(l2Earn);
+    document.getElementById('refEarnL3').innerHTML = pesoRef(l3Earn);
+
+  } catch(e){
+    document.getElementById('referralCodeVal').textContent = 'Error';
+  }
+}
+
+// Expand toggle
+document.getElementById('refExpandBtn').addEventListener('click', () => {
+  refExpanded = !refExpanded;
+  document.getElementById('referralExpanded').classList.toggle('open', refExpanded);
+  document.getElementById('refExpandBtn').classList.toggle('expanded', refExpanded);
+  document.getElementById('refExpandLabel').textContent = refExpanded ? 'Hide Details' : 'View All';
+});
+
+// Copy code
+document.getElementById('copyCodeBtn').addEventListener('click', () => {
+  const code  = document.getElementById('referralCodeVal').textContent;
+  const label = document.getElementById('copyCodeLabel');
+  navigator.clipboard.writeText(code).then(() => {
+    label.textContent = 'Copied!';
+    document.getElementById('copyCodeBtn').style.borderColor = 'rgba(124,255,178,0.6)';
+    document.getElementById('copyCodeBtn').style.color = '#7CFFB2';
+    setTimeout(() => {
+      label.textContent = 'Copy';
+      document.getElementById('copyCodeBtn').style.borderColor = '';
+      document.getElementById('copyCodeBtn').style.color = '';
+    }, 1800);
+  }).catch(() => { label.textContent = code; });
+});
+
+// Share code
+document.getElementById('shareCodeBtn').addEventListener('click', () => {
+  const code = document.getElementById('referralCodeVal').textContent;
+  const url  = window.location.origin + '?ref=' + code;
+  if(navigator.share){
+    navigator.share({ title: 'ORB-X PH', text: 'Sumali ka sa ORB-X PH gamit ang aking referral code: ' + code, url });
+  } else {
+    navigator.clipboard.writeText(url).then(() => {
+      const btn = document.getElementById('shareCodeBtn');
+      btn.innerHTML = `<svg viewBox="0 0 16 16" fill="none" width="12" height="12"><path d="M3 8.5l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg> Copied!`;
+      setTimeout(() => { btn.innerHTML = `<svg viewBox="0 0 16 16" fill="none" width="12" height="12"><circle cx="12" cy="3" r="1.8" stroke="currentColor" stroke-width="1.2"/><circle cx="12" cy="13" r="1.8" stroke="currentColor" stroke-width="1.2"/><circle cx="4" cy="8" r="1.8" stroke="currentColor" stroke-width="1.2"/><path d="M10.3 4l-4.6 2.5M10.3 12L5.7 9.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg> Share`; }, 1800);
+    });
+  }
+});
+
+// ── Withdrawal notification banner (approved / paid) ───────────
+async function loadWithdrawHistory(){
+  try{
+    const list = await fetch('/api/withdraw/mine/'+encodeURIComponent(currentUser)).then(r=>r.json());
+    const existing = document.getElementById('wdNotifBanner');
+    if(existing) existing.remove();
+
+    const paidItem     = list.find(w => w.status==='paid'     && !localStorage.getItem('orbx_paid_seen_'+w.id));
+    const approvedItem = list.find(w => w.status==='approved' && !localStorage.getItem('orbx_approved_seen_'+w.id));
+
+    // Kung parehong meron, i-priority ang paid; isa lang ang ipapakita bawat load.
+    const notif = paidItem
+      ? {
+          id: paidItem.id,
+          key: 'orbx_paid_seen_',
+          title: 'Withdrawal Paid',
+          color: '#7CFFB2',
+          border: 'rgba(124,255,178,0.5)',
+          bg: 'linear-gradient(90deg,rgba(124,255,178,0.18),rgba(77,166,255,0.14))',
+          msg: `Naipadala na ang ₱${Number(paidItem.amount).toLocaleString()} sa iyong ${paidItem.method} account.`,
+        }
+      : approvedItem
+      ? {
+          id: approvedItem.id,
+          key: 'orbx_approved_seen_',
+          title: 'Withdrawal Approved',
+          color: '#4da6ff',
+          border: 'rgba(77,166,255,0.5)',
+          bg: 'linear-gradient(90deg,rgba(77,166,255,0.18),rgba(155,107,255,0.14))',
+          msg: `Aprubado na ng admin ang withdrawal mo na ₱${Number(approvedItem.amount).toLocaleString()}. Iproproseso na ito papunta sa iyong ${approvedItem.method} account.`,
+        }
+      : null;
+
+    if(notif){
+      const banner = document.createElement('div');
+      banner.id = 'wdNotifBanner';
+      banner.style.cssText = `position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:${notif.bg};border:1px solid ${notif.border};border-radius:16px;padding:14px 18px;z-index:9999;max-width:360px;width:90%;font-family:'Inter',sans-serif;box-shadow:0 8px 32px rgba(0,0,0,0.28);display:flex;align-items:center;gap:12px;animation:slideUp .35s ease;`;
+      banner.innerHTML = `
+        <svg width="26" height="26" viewBox="0 0 20 20" fill="none" style="color:${notif.color};flex-shrink:0;">
+          <circle cx="10" cy="10" r="9" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M6.5 10.5l2.5 2.5 4.5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <div style="flex:1;">
+          <div style="font-weight:800;color:${notif.color};font-size:13px;">${notif.title}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px;">${notif.msg}</div>
+        </div>
+        <button onclick="this.parentElement.remove();localStorage.setItem('${notif.key}${notif.id}','1');" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:4px;">×</button>`;
+      document.body.appendChild(banner);
+    }
+    return list;
+  } catch(e){ return []; }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  RANK MODAL
+// ══════════════════════════════════════════════════════════════
+const RANK_DATA = [
+  {
+    cls: 'member', name: 'Member', minInvites: 0, nextAt: 50,
+    rates: [25, 10, 5],
+    benefits: [
+      { text: 'L1 Commission: 25% ng bawat order ng iyong direct invite' },
+      { text: 'L2 Commission: 10% ng orders ng iyong L1\'s invites' },
+      { text: 'L3 Commission: 5% ng orders ng iyong L2\'s invites' },
+      { text: '10% Daily reward sa bawat approved na order mo' },
+      { text: 'Access sa referral code at personal dashboard' },
+      { text: 'Withdrawal request capability (min ₱300 + 2 referrals)' },
+    ],
+  },
+  {
+    cls: 'premium', name: 'Premium', minInvites: 50, nextAt: 150,
+    rates: [30, 12, 6],
+    benefits: [
+      { text: 'L1 Commission: 30% — dagdag na 5% kumpara sa Member' },
+      { text: 'L2 Commission: 12% sa iyong second-level network' },
+      { text: 'L3 Commission: 6% sa iyong third-level network' },
+      { text: '10% Daily reward — katulad ng Member tier' },
+      { text: 'Priority recognition sa leaderboard' },
+      { text: 'Premium badge sa iyong referral profile' },
+      { text: 'Lahat ng Member benefits' },
+    ],
+  },
+  {
+    cls: 'vip', name: 'VIP', minInvites: 150, nextAt: 300,
+    rates: [35, 15, 8],
+    benefits: [
+      { text: 'L1 Commission: 35% — pinakamataas na direct invite rate' },
+      { text: 'L2 Commission: 15% — mas malaking network income' },
+      { text: 'L3 Commission: 8% — mas malalim ang kitaan' },
+      { text: '10% Daily reward sa lahat ng approved orders' },
+      { text: 'VIP gold badge at exclusive profile design' },
+      { text: 'Priority customer support access' },
+      { text: 'Lahat ng Premium benefits' },
+    ],
+  },
+  {
+    cls: 'svip', name: 'SVIP', minInvites: 300, nextAt: null,
+    rates: [40, 18, 10],
+    benefits: [
+      { text: 'L1 Commission: 40% — pinakamataas sa buong system' },
+      { text: 'L2 Commission: 18% — premium network earnings' },
+      { text: 'L3 Commission: 10% — maximum third-level income' },
+      { text: '10% Daily reward — compounding ang kita araw-araw' },
+      { text: 'SVIP plasma badge — pinakaexclusive rank sa ORB-X PH' },
+      { text: 'VIP dedicated support at priority processing' },
+      { text: 'Lahat ng VIP benefits + SVIP-exclusive recognition' },
+    ],
+  },
+];
+
+const BENEFIT_ICON_SVG = `<svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const LOCK_ICON_SVG    = `<svg viewBox="0 0 16 16" fill="none" width="14" height="14"><rect x="3.5" y="7" width="9" height="7" rx="1.2" stroke="currentColor" stroke-width="1.3"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>`;
+
+let currentRankView = 'member';
+let userL1Count = 0;
+
+function renderRankModal(viewCls) {
+  currentRankView = viewCls;
+  const rankInfo  = RANK_DATA.find(r => r.cls === viewCls);
+  const userRankInfo = RANK_DATA.find(r => userL1Count >= r.minInvites && (r.nextAt === null || userL1Count < r.nextAt))
+                    || RANK_DATA[0];
+  const isCurrentRank = viewCls === userRankInfo.cls;
+  const isUnlocked    = userL1Count >= rankInfo.minInvites;
+
+  // Orbit path nodes
+  const orbitPath = document.getElementById('rankOrbitPath');
+  orbitPath.innerHTML = RANK_DATA.map(r => {
+    const isActive = r.cls === viewCls;
+    const isUser   = r.cls === userRankInfo.cls;
+    return `
+      <div class="rank-orbit-node ${isActive ? 'active-node' : ''}" data-rank="${r.cls}" onclick="renderRankModal('${r.cls}')">
+        <div class="rank-orbit-planet rank-orbit-planet--${r.cls}"></div>
+        <div class="rank-orbit-label">${r.name}</div>
+        ${isUser ? '<div class="rank-you-tag">YOU</div>' : '<div style="height:18px"></div>'}
+      </div>`;
+  }).join('');
+
+  // Progress to this rank (for locked ranks)
+  let progressPct = 0;
+  if (rankInfo.minInvites > 0) {
+    const prevRank = RANK_DATA.find(r => r.nextAt === rankInfo.minInvites) || RANK_DATA[0];
+    const base = prevRank ? prevRank.minInvites : 0;
+    progressPct = Math.min(Math.max(((userL1Count - base) / (rankInfo.minInvites - base)) * 100, 0), 100);
+  } else {
+    progressPct = 100; // member is always unlocked
+  }
+
+  // Build detail panel
+  const panel = document.getElementById('rankDetailPanel');
+  const needMore = rankInfo.minInvites > userL1Count ? rankInfo.minInvites - userL1Count : 0;
+
+  panel.innerHTML = `
+    <div class="rank-detail-panel rank-detail-panel--${viewCls}">
+
+      <!-- Big planet header -->
+      <div class="rdp-head">
+        <div class="rdp-planet-big rdp-planet-big--${viewCls}">
+          <div class="rdp-planet-ring"></div>
+          <div class="rdp-planet-ring-dot"></div>
+        </div>
+        <div class="rdp-info">
+          <div class="rdp-rank-name rdp-rank-name--${viewCls}">${rankInfo.name}</div>
+          <div class="rdp-req">
+            ${rankInfo.minInvites === 0
+              ? 'Starting rank — lahat ay nagsisimula dito'
+              : `Kailangan: <strong>${rankInfo.minInvites} direct invites</strong>`}
+          </div>
+          ${isCurrentRank ? '<div class="rdp-current-tag">✦ CURRENT RANK</div>' : ''}
+        </div>
+      </div>
+
+      <!-- Commission rates -->
+      <div class="rdp-rates">
+        <div class="rdp-rate-pill">
+          <div class="rdp-rate-lbl">L1 Rate</div>
+          <div class="rdp-rate-val rdp-rate-val--l1">${rankInfo.rates[0]}%</div>
+        </div>
+        <div class="rdp-rate-pill">
+          <div class="rdp-rate-lbl">L2 Rate</div>
+          <div class="rdp-rate-val rdp-rate-val--l2">${rankInfo.rates[1]}%</div>
+        </div>
+        <div class="rdp-rate-pill">
+          <div class="rdp-rate-lbl">L3 Rate</div>
+          <div class="rdp-rate-val rdp-rate-val--l3">${rankInfo.rates[2]}%</div>
+        </div>
+      </div>
+
+      <!-- Benefits -->
+      <div class="rdp-benefits-title">
+        <svg viewBox="0 0 16 16" fill="none" width="12" height="12"><path d="M8 1l1.8 3.6L14 5.3l-3 2.9.7 4.1L8 10.3l-3.7 2 .7-4.1L2 5.3l4.2-.7z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+        Benefits
+      </div>
+      <div class="rdp-benefits-list">
+        ${rankInfo.benefits.map(b => `
+          <div class="rdp-benefit-item">
+            <div class="rdp-benefit-icon rdp-benefit-icon--${viewCls}">${BENEFIT_ICON_SVG}</div>
+            <span>${b.text}</span>
+          </div>`).join('')}
+      </div>
+
+      ${!isUnlocked ? `
+        <div class="rdp-locked-notice">
+          ${LOCK_ICON_SVG}
+          <span>Kailangan mo ng <strong>${needMore} pang direct invite${needMore !== 1 ? 's' : ''}</strong> para ma-unlock ang ${rankInfo.name}.</span>
+        </div>
+        <div class="rdp-progress-to">
+          <div class="rdp-progress-to-label">
+            <span>Progress to ${rankInfo.name}</span>
+            <span>${Math.floor(progressPct)}%</span>
+          </div>
+          <div class="rdp-progress-to-track">
+            <div class="rdp-progress-to-fill rdp-progress-to-fill--${viewCls}" style="width:0%"></div>
+          </div>
+        </div>` : ''}
+
+    </div>`;
+
+  // Animate progress bar
+  if (!isUnlocked) {
+    setTimeout(() => {
+      const fill = panel.querySelector('.rdp-progress-to-fill');
+      if (fill) fill.style.width = Math.max(progressPct, 3) + '%';
+    }, 80);
+  }
+}
+
+function openRankModal(startCls) {
+  userL1Count = parseInt(document.getElementById('refCompactTeam')?.textContent) || 0;
+  // Get actual L1 count from displayed team text e.g. "12 members"
+  const teamText = document.getElementById('refCompactTeam')?.textContent || '0';
+  userL1Count = parseInt(teamText) || 0;
+  renderRankModal(startCls || 'member');
+  document.getElementById('rankModalOverlay').classList.add('show');
+}
+function closeRankModal() {
+  document.getElementById('rankModalOverlay').classList.remove('show');
+}
+
+document.getElementById('rankModalClose').addEventListener('click', closeRankModal);
+document.getElementById('rankModalOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('rankModalOverlay')) closeRankModal();
+});
+
+// Make rank badge clickable
+document.getElementById('refRankBadge').addEventListener('click', () => {
+  // get user's current rank cls from badge class
+  const badgeCls = document.getElementById('refRankBadge').className;
+  const match = badgeCls.match(/ref-rank-badge--(\w+)/);
+  const cls = match ? match[1] : 'member';
+  openRankModal(cls);
+});
+// Also open from rank icon click (redundant safety)
+document.getElementById('refRankBadge').style.cursor = 'pointer';
+
+function fitReferralCode(){
+  const wrap   = document.querySelector('.rcb-glitch-wrap');
+  const codeEl = document.getElementById('referralCodeVal');
+  if(!wrap || !codeEl) return;
+  let fontSize = 20;
+  codeEl.style.letterSpacing = '3px';
+  codeEl.style.fontSize = fontSize + 'px';
+  while(codeEl.scrollWidth > wrap.clientWidth && fontSize > 9){
+    fontSize -= 1;
+    codeEl.style.fontSize = fontSize + 'px';
+    if(fontSize <= 13) codeEl.style.letterSpacing = '1.5px';
+  }
+}
+window.addEventListener('resize', fitReferralCode);
+// ── Nav Rank Link ─────────────────────────────────────────────
+// ── Nav Rank Card — click to open Rank Modal ────────────────────
+const navRankCardEl = document.getElementById('navRankCard');
+if (navRankCardEl) {
+  navRankCardEl.style.cursor = 'pointer';
+  navRankCardEl.addEventListener('click', () => {
+    document.getElementById('navDrawer').classList.remove('open');
+    document.getElementById('navOverlay').classList.remove('show');
+    const badgeCls = document.getElementById('refRankBadge').className;
+    const match = badgeCls.match(/ref-rank-badge--(\w+)/);
+    const cls = match ? match[1] : 'member';
+    setTimeout(() => openRankModal(cls), 150);
+  });
+}
+// ══════════════════════════════════════════════════════════════
+//  LEVEL TEAM MODAL (per-level clickable view)
+// ══════════════════════════════════════════════════════════════
+let levelTeamData = null;
+let levelTeamCurrentLevel = 1;
+let levelTeamShownCount = 10;
+const LEVEL_TEAM_PAGE_SIZE = 10;
+
+function formatJoinDate(iso){
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-PH', { year:'numeric', month:'short', day:'numeric' });
+}
+
+async function fetchLevelTeamData(force){
+  if(levelTeamData && !force) return levelTeamData;
+  try{
+    const res = await fetch('/api/referral/'+encodeURIComponent(currentUser)+'/team');
+    levelTeamData = await res.json();
+  } catch(e){
+    levelTeamData = { level1: [], level2: [], level3: [] };
+  }
+  return levelTeamData;
+}
+
+function renderLevelTeamBody(){
+  const body = document.getElementById('levelTeamBody');
+  const key  = 'level' + levelTeamCurrentLevel;
+  const list = (levelTeamData && levelTeamData[key]) || [];
+
+  if(!list.length){
+    body.innerHTML = `<div class="lvl-team-empty">Wala pang miyembro sa level na ito.</div>`;
+    return;
+  }
+
+  const visible = list.slice(0, levelTeamShownCount);
+  let html = `<div style="font-size:11.5px;color:var(--muted);margin-bottom:12px;">Kabuuang miyembro: <strong style="color:var(--text)">${list.length}</strong></div>`;
+  html += visible.map(m => `
+    <div class="lvl-team-item">
+      <div class="lvl-team-name">${(m.username||'—').toUpperCase()} - ${m.phone || '—'}</div>
+      <div class="lvl-team-sub">Sumali noong ${formatJoinDate(m.joinedAt)}</div>
+    </div>
+  `).join('');
+
+  if(list.length > visible.length){
+    html += `<button class="lvl-load-more-btn" id="lvlLoadMoreBtn">Load More (${list.length - visible.length} pa)</button>`;
+  }
+
+  body.innerHTML = html;
+  const loadMoreBtn = document.getElementById('lvlLoadMoreBtn');
+  if(loadMoreBtn){
+    loadMoreBtn.addEventListener('click', () => {
+      levelTeamShownCount += LEVEL_TEAM_PAGE_SIZE;
+      renderLevelTeamBody();
+    });
+  }
+}
+
+async function openLevelTeamModal(level){
+  levelTeamCurrentLevel = level;
+  levelTeamShownCount   = LEVEL_TEAM_PAGE_SIZE;
+  document.getElementById('levelTeamTitle').textContent = `Level ${level} Team`;
+  document.getElementById('levelTeamBody').innerHTML = `<p style="color:var(--muted);text-align:center;padding:24px 0;">Naglo-load...</p>`;
+  document.getElementById('levelTeamOverlay').classList.add('show');
+  await fetchLevelTeamData();
+  renderLevelTeamBody();
+}
+
+document.getElementById('levelTeamClose').addEventListener('click', () => {
+  document.getElementById('levelTeamOverlay').classList.remove('show');
+});
+document.getElementById('levelTeamOverlay').addEventListener('click', e => {
+  if(e.target.id === 'levelTeamOverlay') e.currentTarget.classList.remove('show');
+});
+
+[1,2,3].forEach(lvl => {
+  const card = document.getElementById('refLevelCard' + lvl);
+  if(card) card.addEventListener('click', () => openLevelTeamModal(lvl));
+});
+
+async function updateLevelCounts(){
+  try{
+    const res  = await fetch('/api/referral/'+encodeURIComponent(currentUser)+'/team');
+    const data = await res.json();
+    const c1 = document.getElementById('refLvl1Count');
+    const c2 = document.getElementById('refLvl2Count');
+    const c3 = document.getElementById('refLvl3Count');
+    if(c1) c1.textContent = (data.level1||[]).length + ((data.level1||[]).length===1?' member':' members');
+    if(c2) c2.textContent = (data.level2||[]).length + ((data.level2||[]).length===1?' member':' members');
+    if(c3) c3.textContent = (data.level3||[]).length + ((data.level3||[]).length===1?' member':' members');
+  } catch(e){}
+}
+
+updateLevelCounts();
+
+loadReferral();
+loadWithdrawHistory();
+updateLevelCounts();
+setInterval(loadReferral, 30000);
+setInterval(loadWithdrawHistory, 20000);
+setInterval(updateLevelCounts, 30000);
+</script>
+</body>
+</html>

@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>ORB-X PH — Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/dashboard.css">
+<link rel="stylesheet" href="css/admin.css">
+</head>
+<body class="dashboard-body">
+<div class="stars"></div>
+<div class="stars2"></div>
+
+<!-- GATE -->
+<div class="admin-auth-wrap" id="gateWrap">
+  <div class="card admin-auth-card">
+    <div class="logo-wrap">
+      <div class="orb-photo-wrap" style="width:90px;"><div class="orb-glow"></div>
+        <img class="orb-photo" src="assets/logo.png" alt="logo" style="width:65%;height:65%;">
+        <div class="orbit-deco">
+          <div class="tilt tilt-a"><div class="ring-outline"></div><div class="comet comet--gold"></div></div>
+          <div class="tilt tilt-b"><div class="ring-outline"></div><div class="comet comet--blue"></div></div>
+        </div>
+      </div>
+      <div class="wordmark" style="font-size:18px;">ORB-<span>X</span></div>
+      <div class="sub-mark">ADMIN PANEL</div>
+    </div>
+    <div id="gateBlockedMsg" class="hidden gate-blocked-wrap">
+      <div class="gate-blocked-title">Access Blocked</div>
+      <p>Too many incorrect attempts.<br>Contact <strong>Customer Service</strong> to restore access.</p>
+    </div>
+    <form id="gateForm">
+      <p class="sub" style="margin-bottom:16px;">Restricted — Enter Access Code</p>
+      <div class="field"><label for="gateCode">Access Code</label>
+        <div class="input-row"><input type="password" id="gateCode" placeholder="Enter access code" autocomplete="off"></div>
+      </div>
+      <div class="gate-attempts" id="gateAttempts"></div>
+      <div class="form-error" id="gateError"></div>
+      <button type="submit" class="btn-login">Continue</button>
+    </form>
+  </div>
+</div>
+
+<!-- AUTH -->
+<div class="admin-auth-wrap hidden" id="adminAuthWrap">
+  <div class="card admin-auth-card">
+    <div class="logo-wrap">
+      <div class="orb-photo-wrap" style="width:90px;"><div class="orb-glow"></div>
+        <img class="orb-photo" src="assets/logo.png" alt="logo" style="width:65%;height:65%;">
+        <div class="orbit-deco">
+          <div class="tilt tilt-a"><div class="ring-outline"></div><div class="comet comet--gold"></div></div>
+          <div class="tilt tilt-b"><div class="ring-outline"></div><div class="comet comet--blue"></div></div>
+        </div>
+      </div>
+      <div class="wordmark" style="font-size:18px;">ORB-<span>X</span></div>
+      <div class="sub-mark">ADMIN PANEL</div>
+    </div>
+    <form id="adminSetupForm" class="hidden">
+      <p class="sub">Create Admin Account</p>
+      <div class="field"><label>Username</label><div class="input-row"><input type="text" id="setupUser" placeholder="Admin username"></div></div>
+      <div class="field"><label>Password</label><div class="input-row"><input type="password" id="setupPass" placeholder="Min. 6 characters"></div></div>
+      <div class="field"><label>Confirm Password</label><div class="input-row"><input type="password" id="setupPass2" placeholder="Ulitin ang password"></div></div>
+      <div class="form-error" id="setupError"></div>
+      <button type="submit" class="btn-login">Create Account</button>
+    </form>
+    <form id="adminLoginForm" class="hidden">
+      <p class="sub">Admin Login</p>
+      <div class="field"><label>Username</label><div class="input-row"><input type="text" id="loginUser" placeholder="Admin username"></div></div>
+      <div class="field"><label>Password</label><div class="input-row"><input type="password" id="loginPass" placeholder="Password"></div></div>
+      <div class="form-error" id="loginError"></div>
+      <button type="submit" class="btn-login">Log in</button>
+    </form>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="adminDashboard" class="hidden">
+
+  <!-- SIDEBAR -->
+  <aside class="admin-sidebar" id="adminSidebar">
+    <div class="sidebar-brand">
+      <div class="sidebar-logo-circle">
+        <img src="assets/logo.png" alt="ORB-X PH" class="sidebar-logo-img">
+        <div class="sidebar-logo-ring"></div>
+      </div>
+      <div>
+        <div class="sidebar-wordmark">ORB-<span>X</span></div>
+        <div class="sidebar-role-badge">ADMIN PANEL</div>
+      </div>
+    </div>
+
+    <!-- Admin identity strip -->
+    <div class="sidebar-identity-strip">
+      <div class="sidebar-identity-avatar" id="sidebarAvatarBig">
+        <img id="sidebarAvatarImg" src="" alt="" style="display:none;width:100%;height:100%;object-fit:cover;border-radius:50%;">
+        <span id="sidebarAvatarLetter">A</span>
+      </div>
+      <div class="sidebar-identity-info">
+        <div class="sidebar-identity-label">ADMINISTRATOR</div>
+        <div class="sidebar-identity-name" id="adminGreet">—</div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <button class="sidebar-nav-item active" data-tab="overview">
+        <span class="nav-icon"></span>
+        <span class="nav-label">Overview</span>
+      </button>
+      <button class="sidebar-nav-item" data-tab="orders">
+        <span class="nav-icon"></span>
+        <span class="nav-label">Orders</span>
+        <span class="nav-badge" id="pendingBadge"></span>
+      </button>
+      <button class="sidebar-nav-item" data-tab="users">
+        <span class="nav-icon"></span>
+        <span class="nav-label">Users</span>
+      </button>
+      <button class="sidebar-nav-item" data-tab="featured">
+        <span class="nav-icon"></span>
+        <span class="nav-label">Featured</span>
+      </button>
+      <button class="sidebar-nav-item" data-tab="admins">
+        <span class="nav-icon"></span>
+        <span class="nav-label">Admins</span>
+      </button>
+      <button class="sidebar-nav-item" data-tab="profile">
+        <span class="nav-icon"></span>
+        <span class="nav-label">Profile</span>
+      </button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-footer-actions">
+        <button id="themeToggle" class="sidebar-icon-btn" title="Toggle Theme">
+          <span id="themeIcon"></span>
+        </button>
+        <button id="refreshBtn" class="sidebar-icon-btn" title="Refresh Data"></button>
+        <button id="adminLogoutBtn" class="sidebar-logout-btn">Log out</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MOBILE HEADER -->
+  <header class="admin-mobile-header">
+    <button class="mobile-menu-btn" id="mobileSidebarToggle">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="20" height="20">
+        <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+    <div class="mobile-brand">ORB-<span>X</span> <small>ADMIN</small></div>
+    <div class="mobile-header-actions">
+      <button id="themeToggleMobile" class="sidebar-icon-btn"><span id="themeIconMobile"></span></button>
+    </div>
+  </header>
+
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <!-- MAIN -->
+  <main class="admin-main">
+
+    <!-- OVERVIEW -->
+    <div class="admin-tab-panel" id="tab-overview">
+      <div class="page-header">
+        <div>
+          <div class="welcome-eyebrow">Good to see you 👋</div>
+          <h1 class="page-title welcome-title" id="adminWelcomeMsg">Welcome back!</h1>
+          <p class="page-sub">Here's what's happening with ORB-X PH today.</p>
+        </div>
+        <div class="clock-widget" id="liveTime"></div>
+      </div>
+      <div class="admin-stats-grid" id="adminStats"></div>
+      <div class="income-monitor">
+        <div class="income-monitor-head">
+          <div>
+            <div class="section-eyebrow">Revenue Monitor</div>
+            <h2 class="section-title">Total Income</h2>
+          </div>
+          <div class="income-filter-wrap">
+            <button class="income-filter active" data-filter="all">All Time</button>
+            <button class="income-filter" data-filter="today">Today</button>
+            <button class="income-filter" data-filter="week">This Week</button>
+            <button class="income-filter" data-filter="month">This Month</button>
+          </div>
+        </div>
+        <div class="income-main-display">
+          <div class="income-big-num" id="incomeTotal">₱0</div>
+          <div class="income-sub-label" id="incomeSubLabel">from approved orders</div>
+        </div>
+        <div class="income-breakdown" id="incomeBreakdown"></div>
+      </div>
+
+      <!-- WITHDRAWAL REQUESTS -->
+      <div class="withdrawal-requests-wrap">
+        <div class="section-header-row" style="margin-top:32px;margin-bottom:16px;">
+          <div>
+            <div class="section-eyebrow">Cashout Requests</div>
+            <h2 class="section-title">Withdrawal Requests</h2>
+          </div>
+          <div class="wd-admin-filters" id="wdAdminFilters">
+            <button class="order-filter-btn active" data-wf="all">All</button>
+            <button class="order-filter-btn" data-wf="pending">Pending</button>
+            <button class="order-filter-btn" data-wf="approved">Approved</button>
+            <button class="order-filter-btn" data-wf="paid">Paid</button>
+            <button class="order-filter-btn" data-wf="rejected">Rejected</button>
+            <button class="order-filter-btn" data-wf="flagged">Flagged</button>
+          </div>
+        </div>
+        <div id="withdrawalAdminList"><p class="admin-empty">Loading...</p></div>
+      </div>
+
+      <!-- RECENT ORDERS -->
+      <div class="recent-orders-wrap">
+        <div class="section-header-row" style="margin-top:32px;">
+          <div>
+            <div class="section-eyebrow">Latest Activity</div>
+            <h2 class="section-title">Recent Orders</h2>
+          </div>
+          <button class="see-all-btn" data-tab="orders">See All Orders</button>
+        </div>
+        <div class="order-list" id="recentOrderList"><p class="admin-empty">Loading...</p></div>
+      </div>
+    </div>
+
+    <!-- ORDERS -->
+    <div class="admin-tab-panel hidden" id="tab-orders">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Orders</h1>
+          <p class="page-sub">Manage and review all customer orders.</p>
+        </div>
+      </div>
+      <div class="order-list" id="orderList"><p class="admin-empty">Loading...</p></div>
+    </div>
+
+    <!-- USERS -->
+    <div class="admin-tab-panel hidden" id="tab-users">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Users</h1>
+          <p class="page-sub">Manage registered customer accounts.</p>
+        </div>
+      </div>
+      <div class="user-list" id="userList"><p class="admin-empty">Loading...</p></div>
+    </div>
+
+    <!-- FEATURED / ANNOUNCEMENTS -->
+    <div class="admin-tab-panel hidden" id="tab-featured">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Featured <span class="page-title-accent">Announcements</span></h1>
+          <p class="page-sub">Manage announcements and banners visible to customers.</p>
+        </div>
+        <button class="btn-add-featured" id="addAnnouncementBtn">+ New Announcement</button>
+      </div>
+
+      <!-- Add / Edit Form -->
+      <div class="featured-form-card hidden" id="featuredFormCard">
+        <h3 class="featured-form-title" id="featuredFormTitle">New Announcement</h3>
+        <div class="featured-form-grid">
+          <div class="field">
+            <label>Title</label>
+            <div class="input-row"><input type="text" id="announcementTitle" placeholder="e.g. Summer Sale is Live!"></div>
+          </div>
+          <div class="field">
+            <label>Type / Badge</label>
+            <div class="input-row">
+              <select id="announcementType" style="background:transparent;border:none;outline:none;color:var(--text);font-family:'Inter',sans-serif;font-size:13.5px;width:100%;">
+                <option value="info">ℹ️ Info</option>
+                <option value="promo">🔥 Promo</option>
+                <option value="warning">⚠️ Warning</option>
+                <option value="new">✨ New</option>
+                <option value="maintenance">🔧 Maintenance</option>
+              </select>
+            </div>
+          </div>
+          <div class="field featured-form-full">
+            <label>Message</label>
+            <div class="input-row" style="height:auto;padding:10px 14px;">
+              <textarea id="announcementBody" rows="3" style="width:100%;background:transparent;border:none;outline:none;color:var(--text);font-family:'Inter',sans-serif;font-size:13.5px;resize:vertical;" placeholder="I-type ang mensahe para sa customers..."></textarea>
+            </div>
+          </div>
+          <div class="field">
+            <label>Show Until (optional)</label>
+            <div class="input-row"><input type="date" id="announcementExpiry" style="background:transparent;border:none;outline:none;color:var(--text);font-family:'Inter',sans-serif;font-size:13.5px;width:100%;"></div>
+          </div>
+          <div class="field" style="display:flex;align-items:center;gap:10px;padding-top:22px;">
+            <label class="toggle-label">
+              <input type="checkbox" id="announcementActive" checked>
+              <span class="toggle-switch"></span>
+              <span style="font-size:13px;color:var(--text);font-weight:600;">Active (visible to customers)</span>
+            </label>
+          </div>
+        </div>
+        <div class="form-error" id="featuredError"></div>
+        <div class="featured-form-actions">
+          <button class="btn-login" id="saveFeaturedBtn" style="flex:1;">Save Announcement</button>
+          <button class="btn-cancel-featured" id="cancelFeaturedBtn">Cancel</button>
+        </div>
+      </div>
+
+      <!-- List -->
+      <div id="announcementList"><p class="admin-empty">Loading announcements...</p></div>
+    </div>
+
+    <!-- ADMINS -->
+    <div class="admin-tab-panel hidden" id="tab-admins">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Admins</h1>
+          <p class="page-sub">Manage administrator accounts.</p>
+        </div>
+      </div>
+      <div class="admin-list" id="adminList"><p class="admin-empty">Loading...</p></div>
+      <div class="add-admin-card">
+        <h3 class="add-admin-title">Add New Admin</h3>
+        <div class="field"><label>Username</label><div class="input-row"><input type="text" id="newAdminUser" placeholder="New admin username"></div></div>
+        <div class="field"><label>Password</label><div class="input-row"><input type="password" id="newAdminPass" placeholder="Min. 6 characters"></div></div>
+        <div class="form-error" id="newAdminError"></div>
+        <button class="btn-login" id="addAdminBtn" style="margin-top:4px;">Add Admin</button>
+      </div>
+    </div>
+
+    <!-- PROFILE -->
+    <div class="admin-tab-panel hidden" id="tab-profile">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">My <span class="page-title-accent">Profile</span></h1>
+          <p class="page-sub">Manage your admin account information.</p>
+        </div>
+      </div>
+
+      <div class="profile-layout">
+        <!-- Profile card left -->
+        <div class="profile-card-left">
+          <div class="profile-avatar-wrap">
+            <div class="profile-avatar-circle" id="profileAvatarCircle">
+              <img id="profileAvatarPreview" src="" alt="" style="display:none;">
+              <span id="profileAvatarLetter">A</span>
+              <div class="profile-avatar-overlay" id="profileAvatarOverlay">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <span>Upload Photo</span>
+              </div>
+            </div>
+            <input type="file" id="profilePicInput" accept="image/*" style="display:none;">
+          </div>
+          <div class="profile-name-display" id="profileNameDisplay">—</div>
+          <div class="profile-role-tag">Administrator</div>
+          <div class="profile-joined" id="profileJoined"></div>
+        </div>
+
+        <!-- Profile form right -->
+        <div class="profile-form-card">
+          <div class="profile-section-label">Account Information</div>
+          <div class="field">
+            <label>Display Name / Username</label>
+            <div class="input-row"><input type="text" id="profileUsername" placeholder="Your admin username" readonly style="opacity:0.6;cursor:not-allowed;"></div>
+            <div style="font-size:11px;color:var(--muted);margin-top:4px;">Username cannot be changed here.</div>
+          </div>
+          <div class="field">
+            <label>Gmail Address</label>
+            <div class="input-row"><input type="email" id="profileGmail" placeholder="yourname@gmail.com"></div>
+          </div>
+          <div class="field">
+            <label>Phone Number</label>
+            <div class="input-row"><input type="tel" id="profilePhone" placeholder="+63 9XX XXX XXXX"></div>
+          </div>
+
+          <div class="profile-section-label" style="margin-top:24px;">Change Password</div>
+          <div class="field">
+            <label>Current Password</label>
+            <div class="input-row"><input type="password" id="profileCurrentPass" placeholder="Enter current password"></div>
+          </div>
+          <div class="field">
+            <label>New Password</label>
+            <div class="input-row"><input type="password" id="profileNewPass" placeholder="Min. 6 characters"></div>
+          </div>
+          <div class="field">
+            <label>Confirm New Password</label>
+            <div class="input-row"><input type="password" id="profileNewPass2" placeholder="Ulitin ang new password"></div>
+          </div>
+
+          <div class="form-error" id="profileError"></div>
+          <div class="profile-success hidden" id="profileSuccess">✓ Profile updated successfully!</div>
+          <button class="btn-login" id="saveProfileBtn" style="margin-top:8px;">Save Changes</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- IMAGE MODAL -->
+<div class="modal-overlay" id="imgOverlay">
+  <div class="modal-box img-modal-box">
+    <div class="modal-head"><span>Payment Screenshot</span><button class="modal-close" id="imgClose">&times;</button></div>
+    <div class="modal-body img-modal-body"><img id="imgFull" src="" alt="Payment screenshot"></div>
+  </div>
+</div>
+
+<!-- FEEDBACK MODAL -->
+<div class="modal-overlay" id="feedbackOverlay">
+  <div class="modal-box">
+    <div class="modal-head"><span>Send Feedback to User</span><button class="modal-close" id="feedbackClose">&times;</button></div>
+    <div class="modal-body">
+      <p style="font-size:12.5px;color:var(--muted);margin-bottom:12px;">Ang mensaheng ito ay makikita ng customer sa kanyang My Orders page.</p>
+      <div class="input-row" style="height:auto;padding:10px 14px;">
+        <textarea id="feedbackText" rows="4" style="width:100%;background:transparent;border:none;outline:none;color:var(--text);font-family:'Inter',sans-serif;font-size:13.5px;resize:vertical;" placeholder="I-type ang mensahe dito..."></textarea>
+      </div>
+      <button class="btn-login" id="feedbackSend" style="margin-top:14px;">Send Feedback</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/admin.js"></script>
+</body>
+</html>

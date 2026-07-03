@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>ORB-X PH — My Orders</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/dashboard.css">
+<style>
+  .myorder-card{
+    background:var(--card); border:1px solid var(--border); border-radius:16px;
+    padding:16px 18px; margin-bottom:12px; transition:border-color .2s;
+  }
+  .myorder-card:hover{ border-color:rgba(135,160,255,0.35); }
+  .myorder-card.approved{ border-color:rgba(124,255,178,0.3); }
+  .myorder-top{ display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:8px; }
+  .myorder-tier{ font-family:'Orbitron',sans-serif; font-weight:700; font-size:14px; color:var(--blue); }
+  .myorder-price{ font-weight:800; font-size:18px; color:var(--text); }
+  .myorder-meta{ font-size:12px; color:var(--muted); margin-bottom:8px; }
+  .myorder-status{
+    display:inline-block; font-size:9.5px; font-weight:800; letter-spacing:0.5px;
+    text-transform:uppercase; padding:2px 8px; border-radius:10px; margin-bottom:8px;
+  }
+  .myorder-status.pending  { color:var(--gold);  background:rgba(255,200,87,0.12);  border:1px solid rgba(255,200,87,0.35); }
+  .myorder-status.reviewed { color:#7CFFB2; background:rgba(124,255,178,0.1); border:1px solid rgba(124,255,178,0.3); }
+  .myorder-status.flagged  { color:#ff8080; background:rgba(255,90,90,0.1);   border:1px solid rgba(255,90,90,0.3); }
+  .myorder-status.approved {
+    color:#fff; font-size:10px; padding:3px 10px;
+    background:linear-gradient(90deg,rgba(124,255,178,0.25),rgba(77,166,255,0.2));
+    border:1px solid rgba(124,255,178,0.5);
+    box-shadow:0 0 10px rgba(124,255,178,0.15);
+  }
+  .myorder-feedback{
+    display:flex; align-items:flex-start; gap:10px;
+    background:rgba(255,90,90,0.08); border:1px solid rgba(255,90,90,0.25);
+    border-radius:10px; padding:12px 14px; margin-top:8px;
+  }
+  .myorder-feedback-icon{ font-size:18px; flex-shrink:0; }
+  .myorder-feedback-label{ font-size:11px; font-weight:800; color:#ff8080; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; }
+  .myorder-feedback-msg{ font-size:12.5px; color:var(--text); line-height:1.5; }
+
+  /* Approved timer block inside myorders */
+  .myorder-timer-wrap{
+    margin-top:12px; padding:14px 16px;
+    background:rgba(124,255,178,0.05); border:1px solid rgba(124,255,178,0.2);
+    border-radius:12px;
+  }
+  .myorder-timer-label{ font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:0.8px; margin-bottom:6px; font-weight:700; }
+  .myorder-timer{
+    font-family:'Orbitron',sans-serif; font-weight:800; font-size:22px;
+    color:#7CFFB2; letter-spacing:2px;
+  }
+  .myorder-timer.done{ color:var(--gold); font-size:18px; }
+  .myorder-timer-sub{ font-size:11.5px; color:var(--muted); margin-top:6px; }
+  .myorder-bonus-msg{
+    margin-top:8px; font-size:12px; font-weight:700; color:var(--gold);
+    background:rgba(255,200,87,0.08); border:1px solid rgba(255,200,87,0.25);
+    border-radius:8px; padding:8px 12px;
+  }
+  .empty-state{ text-align:center; padding:50px 20px; color:var(--muted); font-size:13px; }
+</style>
+</head>
+<body class="dashboard-body">
+
+  <div class="stars"></div>
+  <div class="stars2"></div>
+
+  <header class="dash-header">
+    <div class="dash-brand">
+      <a href="welcome.html" class="icon-btn" title="Back">&larr;</a>
+      <div class="dash-logo-wrap">
+        <img src="assets/logo.png" alt="ORB-X PH" class="dash-logo-img">
+      </div>
+      <div class="dash-wordmark">ORB-<span>X</span> <small>PH</small></div>
+    </div>
+    <div class="dash-user">
+      <button id="themeToggle" class="icon-btn"><span id="themeIcon">🌙</span></button>
+      <span class="hide-mobile">Hi, <strong id="dashUsername">—</strong></span>
+    </div>
+  </header>
+
+  <main class="dash-main">
+    <div class="dash-intro">
+      <h1>My Orders</h1>
+      <p>Lahat ng iyong mga order at status ng payment.</p>
+    </div>
+    <div id="myOrdersList"><p class="empty-state">Naglo-load...</p></div>
+  </main>
+
+<script>
+  const currentUser = localStorage.getItem('orbx_user');
+  if(!currentUser) window.location.href = 'index.html';
+  document.getElementById('dashUsername').textContent = currentUser || '';
+
+  const themeToggle = document.getElementById('themeToggle');
+  const themeIcon   = document.getElementById('themeIcon');
+  function applyTheme(t){
+    if(t==='light'){ document.body.setAttribute('data-theme','light'); themeIcon.textContent='☀️'; }
+    else{ document.body.removeAttribute('data-theme'); themeIcon.textContent='🌙'; }
+    localStorage.setItem('orbx_theme', t);
+  }
+  applyTheme(localStorage.getItem('orbx_theme') || 'dark');
+  themeToggle.addEventListener('click', () => applyTheme(document.body.getAttribute('data-theme')==='light'?'dark':'light'));
+
+  const BONUS_MS     = 24 * 60 * 60 * 1000;
+  const BONUS_AMOUNT = 20;
+  let timerIntervals = [];
+
+  function formatCountdown(ms){
+    if(ms <= 0) return '00:00:00';
+    const s = Math.floor(ms/1000);
+    const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = s%60;
+    return [h,m,sec].map(n=>String(n).padStart(2,'0')).join(':');
+  }
+
+  function timeAgo(iso){
+    const d = Math.floor((Date.now()-new Date(iso).getTime())/1000);
+    if(d<60) return 'kanina lang';
+    if(d<3600) return Math.floor(d/60)+'m ago';
+    if(d<86400) return Math.floor(d/3600)+'h ago';
+    return Math.floor(d/86400)+'d ago';
+  }
+
+  async function loadMyOrders(){
+  timerIntervals.forEach(t => clearInterval(t));
+  timerIntervals = [];
+
+  const el = document.getElementById('myOrdersList');
+  try{
+    const [ordersRes, dailyRes] = await Promise.all([
+      fetch('/api/orders/mine/'+encodeURIComponent(currentUser)),
+      fetch('/api/daily-rewards/'+encodeURIComponent(currentUser))
+    ]);
+    const orders    = await ordersRes.json();
+    const dailyLogs = await dailyRes.json();
+    const dailyLogMap = {};
+    dailyLogs.forEach(l => { dailyLogMap[l.orderId] = l; });
+
+    if(!orders.length){ el.innerHTML='<p class="empty-state">Wala ka pang order.</p>'; return; }
+
+    el.innerHTML = orders.map(o => {
+      const isApproved = o.status === 'approved';
+      const log = isApproved ? dailyLogMap[o.id] : null;
+      let timerHtml = '';
+      if(log){
+        const nextCreditAt = new Date(log.lastCreditedAt).getTime() + BONUS_MS;
+        const remaining    = nextCreditAt - Date.now();
+        const crediting    = remaining <= 0;
+        timerHtml = `
+          <div class="myorder-timer-wrap">
+            <div class="myorder-timer-label">${crediting ? 'Kinre-credit na...' : 'Next Daily Reward In'}</div>
+            <div class="myorder-timer ${crediting?'done':''}" id="motimer-${o.id}">
+              ${crediting ? 'Please wait...' : formatCountdown(remaining)}
+            </div>
+            <div class="myorder-timer-sub">Araw-araw kang makakatanggap ng +₱${Number(log.dailyReward).toLocaleString()} (10% ng package) habang approved ang order na ito.</div>
+            <div class="myorder-timer-sub" style="margin-top:4px;">Kabuuang natanggap: ₱${Number(log.totalCredited||0).toLocaleString()}</div>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="myorder-card ${isApproved?'approved':''}">
+          <div class="myorder-top">
+            <span class="myorder-tier">${o.tier}</span>
+            <span class="myorder-price">&#8369;${Number(o.price).toLocaleString()}</span>
+          </div>
+          <div class="myorder-meta">${o.method} &middot; ${timeAgo(o.createdAt)}</div>
+          <span class="myorder-status ${o.status}">
+            ${o.status === 'approved' ? '✅ Approved' : o.status}
+          </span>
+          ${timerHtml}
+          ${o.feedback ? `
+            <div class="myorder-feedback">
+              <div class="myorder-feedback-icon">!</div>
+              <div>
+                <div class="myorder-feedback-label">Message from Admin</div>
+                <div class="myorder-feedback-msg">${o.feedback}</div>
+              </div>
+            </div>` : ''}
+        </div>
+      `;
+    }).join('');
+
+    orders.filter(o => o.status === 'approved').forEach(o => {
+      const log = dailyLogMap[o.id];
+      if(!log) return;
+      const nextCreditAt = new Date(log.lastCreditedAt).getTime() + BONUS_MS;
+      const el = document.getElementById('motimer-' + o.id);
+      if(!el) return;
+      if(Date.now() >= nextCreditAt){
+        const t = setTimeout(() => loadMyOrders(), 15000);
+        timerIntervals.push(t);
+        return;
+      }
+      const interval = setInterval(() => {
+        const rem = nextCreditAt - Date.now();
+        if(rem <= 0){ clearInterval(interval); loadMyOrders(); return; }
+        el.textContent = formatCountdown(rem);
+      }, 1000);
+      timerIntervals.push(interval);
+    });
+
+  } catch(err){
+    el.innerHTML = '<p class="empty-state">Hindi makonekta sa server.</p>';
+  }
+}
+
+  loadMyOrders();
+</script>
+</body>
+</html>

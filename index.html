@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>ORB-X PH — Sign In</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <div class="stars"></div>
+  <div class="stars2"></div>
+
+  <div class="orbit-field">
+    <div class="bg-ring bg-ring--a"></div>
+    <div class="bg-ring bg-ring--b"></div>
+  </div>
+
+  <div class="card">
+    <div class="logo-wrap">
+      <div class="orb-photo-wrap">
+        <div class="orb-glow"></div>
+        <img class="orb-photo" src="assets/logo.png" alt="ORB-X PH logo">
+        <div class="orbit-deco">
+          <div class="tilt tilt-a">
+            <div class="ring-outline"></div>
+            <div class="comet comet--gold"></div>
+          </div>
+          <div class="tilt tilt-b">
+            <div class="ring-outline"></div>
+            <div class="comet comet--blue"></div>
+          </div>
+        </div>
+      </div>
+      <div class="wordmark">ORB-<span>X</span></div>
+      <div class="sub-mark">P H</div>
+    </div>
+
+    <div class="auth-tabs" id="authTabs">
+      <button type="button" class="tab-btn active" data-target="signin">Sign In</button>
+      <button type="button" class="tab-btn" data-target="signup">Create Account</button>
+    </div>
+
+    <div class="panels">
+
+      <!-- SIGN IN -->
+      <div class="panel" id="panel-signin">
+        <p class="sub">Sign in to continue</p>
+        <form id="signinForm">
+          <div class="field">
+            <label for="si-phone">Mobile number</label>
+            <div class="input-row">
+              <span class="prefix">🇵🇭 +63</span>
+              <input type="tel" id="si-phone" placeholder="9XX XXX XXXX" inputmode="numeric">
+            </div>
+          </div>
+          <div class="field">
+            <label for="si-password">Password</label>
+            <div class="input-row">
+              <input type="password" id="si-password" placeholder="Enter password">
+              <span class="toggle-eye" data-target="si-password">SHOW</span>
+            </div>
+          </div>
+          <div class="links-row">
+            <a href="#" class="mini-link" data-forgot="password">Forgot password?</a>
+            <a href="#" class="mini-link" data-forgot="username">Forgot username?</a>
+          </div>
+          <label class="tos-row">
+            <input type="checkbox" class="tos-check" data-for="signinBtn">
+            <span>I have read and agree to the <a href="#" class="tos-link">Terms of Service</a></span>
+          </label>
+          <div class="form-error"></div>
+          <button type="submit" class="btn-login" id="signinBtn" disabled>Log in</button>
+        </form>
+      </div>
+
+      <!-- SIGN UP -->
+      <div class="panel hidden" id="panel-signup">
+        <p class="sub">Create your account</p>
+        <form id="signupForm">
+          <div class="field">
+            <label for="su-username">Username</label>
+            <div class="input-row">
+              <input type="text" id="su-username" placeholder="Choose a username">
+            </div>
+          </div>
+          <div class="field">
+            <label for="su-phone">Mobile number</label>
+            <div class="input-row">
+              <span class="prefix">🇵🇭 +63</span>
+              <input type="tel" id="su-phone" placeholder="9XX XXX XXXX" inputmode="numeric">
+            </div>
+          </div>
+          <div class="field">
+            <label for="su-password">Password</label>
+            <div class="input-row">
+              <input type="password" id="su-password" placeholder="Create password">
+              <span class="toggle-eye" data-target="su-password">SHOW</span>
+            </div>
+          </div>
+          <div class="field">
+            <label for="su-confirm">Confirm password</label>
+            <div class="input-row">
+              <input type="password" id="su-confirm" placeholder="Re-enter password">
+              <span class="toggle-eye" data-target="su-confirm">SHOW</span>
+            </div>
+          </div>
+
+          <!-- REFERRAL CODE FIELD — BAGO -->
+          <div class="field">
+            <label for="su-referral">
+              Referral Code
+              <span class="ref-optional-tag">Optional</span>
+            </label>
+            <div class="input-row referral-input-row" id="refInputRow">
+              <svg class="ref-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="7" cy="6" r="2.5" stroke="currentColor" stroke-width="1.4"/>
+                <path d="M2 16c0-2.761 2.239-4.5 5-4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                <circle cx="14" cy="12" r="2" stroke="currentColor" stroke-width="1.4"/>
+                <path d="M14 10V12l1.2.8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <input type="text" id="su-referral" placeholder="e.g. ORBX-JUAN-A1B2" autocomplete="off" style="text-transform:uppercase;">
+              <span class="ref-check-icon hidden" id="refCheckIcon">✓</span>
+            </div>
+            <div class="ref-hint" id="refHint">May nagpa-refer sa iyo? I-paste ang kanilang referral code.</div>
+          </div>
+
+          <label class="tos-row">
+            <input type="checkbox" class="tos-check" data-for="signupBtn">
+            <span>I have read and agree to the <a href="#" class="tos-link">Terms of Service</a></span>
+          </label>
+          <div class="form-error"></div>
+          <button type="submit" class="btn-login" id="signupBtn" disabled>Create account</button>
+        </form>
+      </div>
+
+      <!-- FORGOT -->
+      <div class="panel hidden" id="panel-forgot">
+        <p class="sub" id="forgotTitle">Reset your password</p>
+        <form id="forgotForm">
+          <div class="field">
+            <label for="fg-phone">Mobile number</label>
+            <div class="input-row">
+              <span class="prefix">🇵🇭 +63</span>
+              <input type="tel" id="fg-phone" placeholder="9XX XXX XXXX" inputmode="numeric">
+            </div>
+          </div>
+          <button type="submit" class="btn-login">Send instructions</button>
+        </form>
+        <div class="footer-link"><a href="#" id="backToSignin">Back to Sign In</a></div>
+      </div>
+
+    </div>
+
+    <div class="footer-link" id="switchLine">New here? <a href="#" id="goSignup">Create account</a></div>
+    <div class="preview-tag">RUNS LOCALLY — DATA STAYS ON THIS DEVICE</div>
+  </div>
+
+  <!-- TOS MODAL -->
+  <div class="modal-overlay" id="tosOverlay">
+    <div class="modal-box">
+      <div class="modal-head">
+        <span>Terms of Service</span>
+        <button class="modal-close" id="tosClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p><strong>Sample placeholder text for this UI preview.</strong></p>
+        <p>This screen is a design mockup only. No account, password, or personal data entered here is stored, transmitted, or processed by any server.</p>
+        <p>In a real deployment, this section would be replaced with the actual Terms of Service and Privacy Policy describing how user data is collected, used, and protected, along with the rights and responsibilities of both the user and the service provider.</p>
+        <p>Replace this placeholder before using this template for any live, public-facing product.</p>
+      </div>
+    </div>
+  </div>
+
+<script src="js/script.js"></script>
+
+</body>
+</html>
+<!-- NOTE: style.css additions needed — append these to your css/style.css -->

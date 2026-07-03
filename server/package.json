@@ -1,0 +1,14 @@
+{
+  "name": "orbx-login-server",
+  "version": "1.0.0",
+  "description": "Local auth server for ORB-X PH login/signup demo",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "express": "^4.19.2",
+    "multer": "^2.2.0"
+  }
+}

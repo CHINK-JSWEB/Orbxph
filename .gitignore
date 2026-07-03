@@ -1,0 +1,6 @@
+server/node_modules/
+server/uploads/
+server/*.json
+!server/package.json
+!server/package-lock.json
+.env
