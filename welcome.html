@@ -2178,11 +2178,12 @@ document.getElementById('refExpandBtn').addEventListener('click', () => {
   document.getElementById('refExpandLabel').textContent = refExpanded ? 'Hide Details' : 'View All';
 });
 
-// Copy code
+// Copy referral link (buong link na may code, hindi na code lang)
 document.getElementById('copyCodeBtn').addEventListener('click', () => {
   const code  = document.getElementById('referralCodeVal').textContent;
+  const url   = window.location.origin + '/?ref=' + code;
   const label = document.getElementById('copyCodeLabel');
-  navigator.clipboard.writeText(code).then(() => {
+  navigator.clipboard.writeText(url).then(() => {
     label.textContent = 'Copied!';
     document.getElementById('copyCodeBtn').style.borderColor = 'rgba(124,255,178,0.6)';
     document.getElementById('copyCodeBtn').style.color = '#7CFFB2';
@@ -2191,15 +2192,15 @@ document.getElementById('copyCodeBtn').addEventListener('click', () => {
       document.getElementById('copyCodeBtn').style.borderColor = '';
       document.getElementById('copyCodeBtn').style.color = '';
     }, 1800);
-  }).catch(() => { label.textContent = code; });
+  }).catch(() => { label.textContent = url; });
 });
 
-// Share code
+// Share referral link
 document.getElementById('shareCodeBtn').addEventListener('click', () => {
   const code = document.getElementById('referralCodeVal').textContent;
-  const url  = window.location.origin + '?ref=' + code;
+  const url  = window.location.origin + '/?ref=' + code;
   if(navigator.share){
-    navigator.share({ title: 'ORB-X PH', text: 'Sumali ka sa ORB-X PH gamit ang aking referral code: ' + code, url });
+    navigator.share({ title: 'ORB-X PH', text: 'Join ORB-X PH using my referral link:', url });
   } else {
     navigator.clipboard.writeText(url).then(() => {
       const btn = document.getElementById('shareCodeBtn');

@@ -3,4 +3,16 @@ server/uploads/
 server/*.json
 !server/package.json
 !server/package-lock.json
+
+node_modules/
+
 .env
+.env.*
+
+*.log
+npm-debug.log*
+
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
