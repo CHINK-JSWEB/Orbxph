@@ -95,11 +95,11 @@ if(refInput){
     const val = refInput.value.trim();
     if(val.length >= 6){
       refCheckIcon.classList.remove('hidden');
-      refHint.textContent = 'Code entered — irerecieve ng nagpa-refer sa iyo ang reward kapag na-approve ang iyong order.';
+      refHint.textContent = 'Code applied — your referrer will earn a reward once your order is approved.';
       refHint.style.color = '#7CFFB2';
     } else {
       refCheckIcon.classList.add('hidden');
-      refHint.textContent = 'May nagpa-refer sa iyo? I-paste ang kanilang referral code.';
+      refHint.textContent = 'Have a referral code? Enter it here.';
       refHint.style.color = '';
     }
   });
@@ -112,6 +112,31 @@ if(refInput){
     }, 0);
   });
 }
+
+// ── Auto-fill referral code from URL (?ref=CODE) ────────────────
+(function autoFillReferralFromURL(){
+  const params  = new URLSearchParams(window.location.search);
+  const refCode = params.get('ref');
+  if(!refCode || !refInput) return;
+
+  // Fill in the code immediately
+  refInput.value = refCode.toUpperCase();
+  refInput.dispatchEvent(new Event('input'));
+
+  // Lock the field so it can't be accidentally changed
+  refInput.readOnly = true;
+  refInput.style.opacity = '0.85';
+  refInput.style.cursor = 'not-allowed';
+
+  // Update the hint to reflect the auto-fill
+  if(refHint){
+    refHint.textContent = 'Referral code automatically applied from your invite link.';
+    refHint.style.color = '#7CFFB2';
+  }
+
+  // Switch straight to the Sign Up tab
+  document.querySelector('[data-target="signup"]').click();
+})();
 
 // ── Error helpers ────────────────────────────────────────────
 function showError(formId, message, isSuccess){
@@ -145,16 +170,16 @@ document.getElementById('signupForm').addEventListener('submit', async (e) => {
   const referralCode = document.getElementById('su-referral')?.value.trim().toUpperCase() || '';
 
   if(!username){
-    return showError('signupForm', 'Maglagay ng username.');
+    return showError('signupForm', 'Please enter a username.');
   }
   if(phoneInput.value.replace(/\D/g,'').length < 10){
-    return showError('signupForm', 'Maglagay ng tamang 10-digit na mobile number.');
+    return showError('signupForm', 'Please enter a valid 10-digit mobile number.');
   }
   if(password.length < 6){
-    return showError('signupForm', 'Dapat hindi bababa sa 6 characters ang password.');
+    return showError('signupForm', 'Password must be at least 6 characters.');
   }
   if(password !== confirm){
-    return showError('signupForm', 'Hindi magkatugma ang password.');
+    return showError('signupForm', 'Passwords do not match.');
   }
 
   try{
@@ -165,17 +190,17 @@ document.getElementById('signupForm').addEventListener('submit', async (e) => {
         username,
         phone,
         password,
-        referralCode: referralCode || undefined   // send only if may laman
+        referralCode: referralCode || undefined
       })
     });
     const data = await res.json();
     if(!res.ok){
-      return showError('signupForm', data.error || 'May problema sa pag-register.');
+      return showError('signupForm', data.error || 'Something went wrong while creating your account.');
     }
     document.querySelector('[data-target="signin"]').click();
-    showError('signinForm', 'Account created! Pwede ka nang mag-login.', true);
+    showError('signinForm', 'Account created! You can now sign in.', true);
   } catch(err){
-    showError('signupForm', 'Hindi makonekta sa server. Siguraduhing tumatakbo ang server.js.');
+    showError('signupForm', 'Unable to connect to the server. Please try again shortly.');
   }
 });
 
@@ -189,7 +214,7 @@ document.getElementById('signinForm').addEventListener('submit', async (e) => {
   const password   = document.getElementById('si-password').value;
 
   if(phoneInput.value.replace(/\D/g,'').length < 10){
-    return showError('signinForm', 'Maglagay ng tamang mobile number.');
+    return showError('signinForm', 'Please enter a valid mobile number.');
   }
 
   try{
@@ -200,17 +225,17 @@ document.getElementById('signinForm').addEventListener('submit', async (e) => {
     });
     const data = await res.json();
     if(!res.ok){
-      return showError('signinForm', data.error || 'Hindi ma-login.');
+      return showError('signinForm', data.error || 'Unable to sign in.');
     }
     localStorage.setItem('orbx_user', data.username);
     window.location.href = 'welcome.html';
   } catch(err){
-    showError('signinForm', 'Hindi makonekta sa server. Siguraduhing tumatakbo ang server.js.');
+    showError('signinForm', 'Unable to connect to the server. Please try again shortly.');
   }
 });
 
 // ── Forgot (UI only) ─────────────────────────────────────────
 document.getElementById('forgotForm').addEventListener('submit', (e) => {
   e.preventDefault();
-  alert('Demo lang ito sa ngayon — wala pang aktwal na SMS o email na ipapadala.');
+  alert('This feature is not yet available. Please contact Customer Service for account recovery assistance.');
 });
