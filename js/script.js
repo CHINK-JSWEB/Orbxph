@@ -1,3 +1,4 @@
+console.log('SCRIPT VERSION TEST - ' + new Date().toISOString());
 // Tab switching
 const tabBtns = document.querySelectorAll('.tab-btn');
 const switchLine = document.getElementById('switchLine');
