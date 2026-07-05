@@ -206,11 +206,45 @@ async function getUserRank(username) {
   };
 }
 
-// ── Withdrawals ───────────────────────────────────────────────
-let withdrawalsArray = [];
-function loadWithdrawals() { withdrawalsArray = readJSON(WITHDRAWALS_FILE, []); }
-function saveWithdrawals() { writeJSON(WITHDRAWALS_FILE, withdrawalsArray); }
-loadWithdrawals();
+// ── Withdrawals (PostgreSQL) ──────────────────────────────────
+function mapWithdrawalRow(w) {
+  return {
+    id: w.id,
+    username: w.username,
+    amount: parseFloat(w.amount),
+    accountNumber: w.account_number,
+    accountName: w.account_name,
+    method: w.method,
+    notes: w.notes,
+    status: w.status,
+    feedback: w.feedback,
+    createdAt: w.created_at,
+    processedAt: w.processed_at,
+  };
+}
+
+async function findWithdrawalById(id) {
+  const r = await pool.query('SELECT * FROM withdrawals WHERE id = $1', [id]);
+  return r.rows[0] ? mapWithdrawalRow(r.rows[0]) : null;
+}
+async function getWithdrawalsByUsername(username) {
+  const r = await pool.query(
+    'SELECT * FROM withdrawals WHERE LOWER(username) = LOWER($1) ORDER BY created_at DESC',
+    [username]
+  );
+  return r.rows.map(mapWithdrawalRow);
+}
+async function getAllWithdrawals() {
+  const r = await pool.query('SELECT * FROM withdrawals ORDER BY created_at DESC');
+  return r.rows.map(mapWithdrawalRow);
+}
+async function hasPendingWithdrawal(username) {
+  const r = await pool.query(
+    "SELECT id FROM withdrawals WHERE LOWER(username) = LOWER($1) AND status = 'pending'",
+    [username]
+  );
+  return r.rows.length > 0;
+}
 const REFERRAL_SIGNUP_BONUS = 100;
 const MIN_WITHDRAWAL    = 300;
 const MIN_REFERRALS     = 2;
@@ -234,9 +268,7 @@ async function getWithdrawEligibility(username) {
   const nextUnlockAt = cycleStart
     ? new Date(new Date(cycleStart).getTime() + REFERRAL_CYCLE_MS).toISOString()
     : null;
-  const hasPending = withdrawalsArray.some(
-    w => w.username.toLowerCase() === username.toLowerCase() && w.status === 'pending'
-  );
+  const hasPending = await hasPendingWithdrawal(username);
 
   return {
     eligible: referralsMet && balanceMet && !hasPending,
@@ -844,42 +876,34 @@ app.post('/api/withdraw', async (req, res) => {
       error: `Ang matitirang balance ay dapat ₱${MIN_WITHDRAWAL} pataas, o i-withdraw na lahat ng ₱${elig.balance}.`
     });
 
-  const withdrawal = {
-    id:            Date.now().toString(36),
-    username,
-    amount:        amt,
-    accountNumber,
-    accountName,
-    method:        method || 'GCash',
-    notes:         notes || '',
-    status:        'pending',
-    feedback:      null,
-    createdAt:     new Date().toISOString(),
-    processedAt:   null,
-  };
-  withdrawalsArray.push(withdrawal);
-  saveWithdrawals();
-  console.log(`[WITHDRAW REQUEST] ${username} requested ₱${amt} via ${withdrawal.method}`);
-  res.json({ success: true, withdrawalId: withdrawal.id, withdrawal });
+  const id = Date.now().toString(36);
+  const withdrawMethod = method || 'GCash';
+  await pool.query(
+    `INSERT INTO withdrawals (id, username, amount, account_number, account_name, method, notes, status)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending')`,
+    [id, username, amt, accountNumber, accountName, withdrawMethod, notes || '']
+  );
+  const withdrawal = await findWithdrawalById(id);
+  console.log(`[WITHDRAW REQUEST] ${username} requested ₱${amt} via ${withdrawMethod}`);
+  res.json({ success: true, withdrawalId: id, withdrawal });
 });
 
 // CLIENT: own withdrawal history
-app.get('/api/withdraw/mine/:username', (req, res) => {
-  const uname = req.params.username.toLowerCase();
-  const mine  = withdrawalsArray
-    .filter(w => w.username.toLowerCase() === uname)
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+app.get('/api/withdraw/mine/:username', async (req, res) => {
+  const mine = await getWithdrawalsByUsername(req.params.username);
   res.json(mine);
 });
 
 // ADMIN: all withdrawal requests
-app.get('/api/admin/withdrawals', requireAdmin, (req, res) => {
-  res.json(withdrawalsArray.slice().reverse());
+app.get('/api/admin/withdrawals', requireAdmin, async (req, res) => {
+  const all = await getAllWithdrawals();
+  res.json(all);
 });
 
 // ADMIN: update withdrawal status
+
 app.patch('/api/admin/withdrawals/:id', requireAdmin, async (req, res) => {
-  const w = withdrawalsArray.find(x => x.id === req.params.id);
+  const w = await findWithdrawalById(req.params.id);
   if (!w) return res.status(404).json({ error: 'Withdrawal not found.' });
 
   const { status, feedback } = req.body || {};
@@ -893,15 +917,15 @@ app.patch('/api/admin/withdrawals/:id', requireAdmin, async (req, res) => {
           error: 'I-approve muna ang withdrawal bago i-mark as Paid.'
         });
       }
-      w.status      = 'paid';
-      w.processedAt = new Date().toISOString();
-      if (feedback !== undefined) w.feedback = feedback;
-      saveWithdrawals();
+      await pool.query(
+        'UPDATE withdrawals SET status = $1, processed_at = NOW(), feedback = $2 WHERE id = $3',
+        ['paid', feedback !== undefined ? feedback : w.feedback, w.id]
+      );
+      const updated = await findWithdrawalById(w.id);
       console.log(`[WITHDRAW PAID] ${w.username} -> ₱${w.amount} marked as paid.`);
-      return res.json({ success: true, withdrawal: w });
+      return res.json({ success: true, withdrawal: updated });
     }
-
-    // ── APPROVE: deduct balance + start new referral cycle ────
+// ── APPROVE: deduct balance + start new referral cycle ────
     if (status === 'approved' && w.status !== 'approved') {
       const wallet  = await getWallet(w.username);
       const balance = parseFloat((wallet.income - wallet.withdrawn).toFixed(2));
@@ -915,7 +939,7 @@ app.patch('/api/admin/withdrawals/:id', requireAdmin, async (req, res) => {
         'UPDATE wallets SET withdrawn = $1, withdraw_cycle_start = NOW() WHERE LOWER(username) = LOWER($2)',
         [newWithdrawn, w.username]
       );
-      w.processedAt = new Date().toISOString();
+      await pool.query('UPDATE withdrawals SET processed_at = NOW() WHERE id = $1', [w.id]);
       console.log(`[WITHDRAW APPROVED] ${w.username} -> ₱${w.amount}. Bagong 7-day referral cycle nagsimula.`);
     }
 
@@ -930,12 +954,21 @@ app.patch('/api/admin/withdrawals/:id', requireAdmin, async (req, res) => {
       console.log(`[WITHDRAW REVERTED] ${w.username} +₱${w.amount} ibinalik sa balance.`);
     }
 
-    w.status = status;
   }
 
-  if (feedback !== undefined) w.feedback = feedback;
-  saveWithdrawals();
-  res.json({ success: true, withdrawal: w });
+  const updates = [];
+  const values = [];
+  let idx = 1;
+  if (status) { updates.push(`status = $${idx++}`); values.push(status); }
+  if (feedback !== undefined) { updates.push(`feedback = $${idx++}`); values.push(feedback); }
+
+  if (updates.length > 0) {
+    values.push(w.id);
+    await pool.query(`UPDATE withdrawals SET ${updates.join(', ')} WHERE id = $${idx}`, values);
+  }
+
+  const updatedWithdrawal = await findWithdrawalById(w.id);
+  res.json({ success: true, withdrawal: updatedWithdrawal });
 });
 
 // ── Customer: change password ─────────────────────────────────
