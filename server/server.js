@@ -55,17 +55,39 @@ async function getAllUsers() {
   return r.rows;
 }
 
-// ── Orders ────────────────────────────────────────────────────
-let ordersArray = [];
-function loadOrders() { ordersArray = readJSON(ORDERS_FILE, []); }
-function saveOrders() { writeJSON(ORDERS_FILE, ordersArray); }
-loadOrders();
+// ── Orders (PostgreSQL) ───────────────────────────────────────
+function mapOrderRow(o) {
+  return {
+    id: o.id,
+    username: o.username,
+    tier: o.tier,
+    price: parseFloat(o.price),
+    method: o.method,
+    screenshot: o.screenshot,
+    status: o.status,
+    feedback: o.feedback,
+    approvedAt: o.approved_at,
+    bonusClaimed: o.bonus_claimed,
+    createdAt: o.created_at,
+  };
+}
 
-// ── Archived Orders ───────────────────────────────────────────
-let archivedOrders = [];
-function loadArchived() { archivedOrders = readJSON(ARCHIVED_FILE, []); }
-function saveArchived() { writeJSON(ARCHIVED_FILE, archivedOrders); }
-loadArchived();
+async function findOrderById(id) {
+  const r = await pool.query('SELECT * FROM orders WHERE id = $1', [id]);
+  return r.rows[0] ? mapOrderRow(r.rows[0]) : null;
+}
+async function getAllOrders() {
+  const r = await pool.query('SELECT * FROM orders ORDER BY created_at DESC');
+  return r.rows.map(mapOrderRow);
+}
+async function getOrdersByUsername(username) {
+  const r = await pool.query('SELECT * FROM orders WHERE LOWER(username) = LOWER($1) ORDER BY created_at DESC', [username]);
+  return r.rows.map(mapOrderRow);
+}
+async function getArchivedOrdersByUsername(username) {
+  const r = await pool.query('SELECT * FROM archived_orders WHERE LOWER(username) = LOWER($1) ORDER BY created_at DESC', [username]);
+  return r.rows.map(mapOrderRow).map(o => ({ ...o, _archived: true }));
+}
 
 // ── Wallets ───────────────────────────────────────────────────
 let walletsData = {};
@@ -148,10 +170,6 @@ async function getOrCreateReferral(username) {
 }
 
 // ── Daily Logs ────────────────────────────────────────────────
-let dailyLogsData = {};
-function loadDailyLogs() { dailyLogsData = readJSON(DAILY_LOGS_FILE, {}); }
-function saveDailyLogs() { writeJSON(DAILY_LOGS_FILE, dailyLogsData); }
-loadDailyLogs();
 
 const DAILY_REWARD_RATE    = 0.10;
 const RANKS = [
@@ -233,25 +251,26 @@ function loadTaskLogs() { taskLogsData = readJSON(TASK_LOGS_FILE, {}); }
 function saveTaskLogs() { writeJSON(TASK_LOGS_FILE, taskLogsData); }
 loadTasks();
 loadTaskLogs();
-
 // ── Daily Reward Scheduler ────────────────────────────────────
-function processDailyRewards() {
+async function processDailyRewards() {
   const now = Date.now();
-  let changed = false;
-  for (const [orderId, log] of Object.entries(dailyLogsData)) {
-    const lastCredited = new Date(log.lastCreditedAt).getTime();
+  const r = await pool.query('SELECT * FROM daily_logs');
+  for (const log of r.rows) {
+    const lastCredited = new Date(log.last_credited_at).getTime();
     const elapsed = now - lastCredited;
     if (elapsed >= 24 * 60 * 60 * 1000) {
-      creditWallet(log.username, log.dailyReward, `Daily reward - ${log.tier}`);
-      log.lastCreditedAt = new Date().toISOString();
-      log.totalCredited  = parseFloat(((log.totalCredited || 0) + log.dailyReward).toFixed(2));
-      changed = true;
-      console.log(`[DAILY REWARD] ${log.username} +₱${log.dailyReward} (${log.tier})`);
+      creditWallet(log.username, parseFloat(log.daily_reward), `Daily reward - ${log.tier}`);
+      const newTotal = parseFloat((parseFloat(log.total_credited || 0) + parseFloat(log.daily_reward)).toFixed(2));
+      await pool.query(
+        'UPDATE daily_logs SET last_credited_at = NOW(), total_credited = $1 WHERE order_id = $2',
+        [newTotal, log.order_id]
+      );
+      console.log(`[DAILY REWARD] ${log.username} +₱${log.daily_reward} (${log.tier})`);
     }
   }
-  if (changed) saveDailyLogs();
 }
 setInterval(processDailyRewards, 60 * 1000);
+
 
 // ── Admin ─────────────────────────────────────────────────────
 let adminAccounts = [];
@@ -409,46 +428,39 @@ const upload = multer({
   fileFilter: (req, file, cb) => cb(null, file.mimetype.startsWith('image/'))
 });
 
-app.post('/api/orders', upload.single('screenshot'), (req, res) => {
+app.post('/api/orders', upload.single('screenshot'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Walang na-attach na screenshot.' });
   const { username, tier, price, method } = req.body || {};
-  const order = {
-    id:           Date.now().toString(36),
-    username:     username || 'Unknown',
-    tier:         tier || '—',
-    price:        Number(price) || 0,
-    method:       method || 'GCash',
-    screenshot:   '/uploads/' + req.file.filename,
-    status:       'pending',
-    feedback:     null,
-    approvedAt:   null,
-    bonusClaimed: false,
-    createdAt:    new Date().toISOString(),
-  };
-  ordersArray.push(order);
-  saveOrders();
-  console.log(`[NEW ORDER] ${order.username} -> ${order.tier} (₱${order.price}) via ${order.method}`);
-  res.json({ success: true, orderId: order.id });
+  const id = Date.now().toString(36);
+  const screenshot = '/uploads/' + req.file.filename;
+  await pool.query(
+    `INSERT INTO orders (id, username, tier, price, method, screenshot, status)
+     VALUES ($1, $2, $3, $4, $5, $6, 'pending')`,
+    [id, username || 'Unknown', tier || '—', Number(price) || 0, method || 'GCash', screenshot]
+  );
+  console.log(`[NEW ORDER] ${username} -> ${tier} (₱${price}) via ${method}`);
+  res.json({ success: true, orderId: id });
 });
 
 // CLIENT: My Orders — kasama ang archived
-app.get('/api/orders/mine/:username', (req, res) => {
-  const uname = req.params.username.toLowerCase();
-  const active = ordersArray.filter(o => o.username.toLowerCase() === uname);
-  const archived = archivedOrders
-    .filter(o => o.username.toLowerCase() === uname)
-    .map(o => ({ ...o, _archived: true }));
+app.get('/api/orders/mine/:username', async (req, res) => {
+  const active = await getOrdersByUsername(req.params.username);
+  const archived = await getArchivedOrdersByUsername(req.params.username);
   const combined = [...active, ...archived]
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   res.json(combined);
 });
 
+
 // ADMIN: All orders
-app.get('/api/orders', requireAdmin, (req, res) => res.json(ordersArray.slice().reverse()));
+app.get('/api/orders', requireAdmin, async (req, res) => {
+  const orders = await getAllOrders();
+  res.json(orders);
+});
 
 // ADMIN: Update order status
 app.patch('/api/orders/:id', requireAdmin, async (req, res) => {
-  const order = ordersArray.find(o => o.id === req.params.id);
+  const order = await findOrderById(req.params.id);
   if (!order) return res.status(404).json({ error: 'Order not found.' });
   const { status, feedback } = req.body || {};
 
@@ -459,33 +471,30 @@ app.patch('/api/orders/:id', requireAdmin, async (req, res) => {
       });
 
     const wasApproved = order.status === 'approved';
-    order.status = status;
+    let newApprovedAt = order.approvedAt;
+    let newBonusClaimed = order.bonusClaimed;
 
     if (status === 'approved' && !wasApproved) {
-      order.approvedAt = new Date().toISOString();
+      newApprovedAt = new Date().toISOString();
 
       // Daily Reward tracking
       const dailyReward = parseFloat((order.price * DAILY_REWARD_RATE).toFixed(2));
-      dailyLogsData[order.id] = {
-        username:       order.username,
-        tier:           order.tier,
-        price:          order.price,
-        dailyReward,
-        startedAt:      order.approvedAt,
-        lastCreditedAt: order.approvedAt,
-        totalCredited:  0,
-      };
-      saveDailyLogs();
+      await pool.query(
+        `INSERT INTO daily_logs (order_id, username, tier, price, daily_reward, started_at, last_credited_at, total_credited)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 0)
+         ON CONFLICT (order_id) DO NOTHING`,
+        [order.id, order.username, order.tier, order.price, dailyReward, newApprovedAt, newApprovedAt]
+      );
       console.log(`[DAILY LOG] Started for ${order.username} - ₱${dailyReward}/day (${order.tier})`);
 
-     // Multi-Level Referral Reward (Level 1: 25%, Level 2: 10%, Level 3: 5%)
+      // Multi-Level Referral Reward (Level 1: 25%, Level 2: 10%, Level 3: 5%)
       let chainUsername = order.username;
       for (let level = 1; level <= 3; level++) {
         const chainUser = await findUserByUsername(chainUsername);
         if (!chainUser || !chainUser.referred_by) break;
 
-        const inviterKey     = chainUser.referred_by;
-        const referralEntry  = await getReferralByUsername(inviterKey);
+        const inviterKey    = chainUser.referred_by;
+        const referralEntry = await getReferralByUsername(inviterKey);
 
         if (referralEntry) {
           const alreadyCreditedRow = await pool.query(
@@ -508,7 +517,7 @@ app.patch('/api/orders/:id', requireAdmin, async (req, res) => {
               `INSERT INTO referral_invites
                (referrer_username, invited_username, order_id, tier, price, level, reward, credited_at)
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-              [referralEntry.username, order.username, order.id, order.tier, order.price, level, reward, order.approvedAt]
+              [referralEntry.username, order.username, order.id, order.tier, order.price, level, reward, newApprovedAt]
             );
             const inviterUser = await findUserByUsername(inviterKey);
             if (inviterUser) {
@@ -524,79 +533,78 @@ app.patch('/api/orders/:id', requireAdmin, async (req, res) => {
     }
 
     if (status !== 'approved') {
-      if (dailyLogsData[order.id]) {
-        delete dailyLogsData[order.id];
-        saveDailyLogs();
-      }
-      order.approvedAt   = null;
-      order.bonusClaimed = false;
+      await pool.query('DELETE FROM daily_logs WHERE order_id = $1', [order.id]);
+      newApprovedAt = null;
+      newBonusClaimed = false;
     }
+
+    await pool.query(
+      'UPDATE orders SET status = $1, approved_at = $2, bonus_claimed = $3 WHERE id = $4',
+      [status, newApprovedAt, newBonusClaimed, order.id]
+    );
   }
 
-  if (feedback !== undefined) order.feedback = feedback;
-  saveOrders();
-  res.json({ success: true, order });
-});
+  if (feedback !== undefined) {
+    await pool.query('UPDATE orders SET feedback = $1 WHERE id = $2', [feedback, order.id]);
+  }
 
+  const updatedOrder = await findOrderById(order.id);
+  res.json({ success: true, order: updatedOrder });
+});
 // ADMIN: Delete single order → archive
-app.delete('/api/orders/:id', requireAdmin, (req, res) => {
-  const idx = ordersArray.findIndex(o => o.id === req.params.id);
-  if (idx === -1) return res.status(404).json({ error: 'Order not found.' });
-  const order = ordersArray[idx];
+app.delete('/api/orders/:id', requireAdmin, async (req, res) => {
+  const order = await findOrderById(req.params.id);
+  if (!order) return res.status(404).json({ error: 'Order not found.' });
 
   if (order.screenshot) {
     fs.unlink(path.join(UPLOADS_DIR, path.basename(order.screenshot)), () => {});
   }
-  if (dailyLogsData[order.id]) {
-    delete dailyLogsData[order.id];
-    saveDailyLogs();
-  }
-  archivedOrders.push({
-    ...order,
-    screenshot: null,
-    deletedByAdminAt: new Date().toISOString(),
-  });
-  saveArchived();
-  ordersArray.splice(idx, 1);
-  saveOrders();
+  await pool.query('DELETE FROM daily_logs WHERE order_id = $1', [order.id]);
+
+  await pool.query(
+    `INSERT INTO archived_orders
+     (id, username, tier, price, method, screenshot, status, feedback, approved_at, bonus_claimed, created_at, deleted_by_admin_at)
+     VALUES ($1, $2, $3, $4, $5, NULL, $6, $7, $8, $9, $10, NOW())`,
+    [order.id, order.username, order.tier, order.price, order.method, order.status, order.feedback, order.approvedAt, order.bonusClaimed, order.createdAt]
+  );
+  await pool.query('DELETE FROM orders WHERE id = $1', [order.id]);
+
   console.log(`[DELETE ORDER] Archived: ${order.username} - ${order.tier} (${order.status})`);
   res.json({ success: true });
 });
 
 // ADMIN: Bulk delete approved orders → archive
-app.delete('/api/orders/bulk/:status', requireAdmin, (req, res) => {
-  const status   = req.params.status;
-  const toDelete = ordersArray.filter(o => o.status === status);
+app.delete('/api/orders/bulk/:status', requireAdmin, async (req, res) => {
+  const status = req.params.status;
+  const r = await pool.query('SELECT * FROM orders WHERE status = $1', [status]);
+  const toDelete = r.rows.map(mapOrderRow);
 
-  toDelete.forEach(o => {
+  for (const o of toDelete) {
     if (o.screenshot) fs.unlink(path.join(UPLOADS_DIR, path.basename(o.screenshot)), () => {});
-    if (dailyLogsData[o.id]) delete dailyLogsData[o.id];
-    archivedOrders.push({
-      ...o,
-      screenshot: null,
-      deletedByAdminAt: new Date().toISOString(),
-    });
-  });
+    await pool.query('DELETE FROM daily_logs WHERE order_id = $1', [o.id]);
+    await pool.query(
+      `INSERT INTO archived_orders
+       (id, username, tier, price, method, screenshot, status, feedback, approved_at, bonus_claimed, created_at, deleted_by_admin_at)
+       VALUES ($1, $2, $3, $4, $5, NULL, $6, $7, $8, $9, $10, NOW())`,
+      [o.id, o.username, o.tier, o.price, o.method, o.status, o.feedback, o.approvedAt, o.bonusClaimed, o.createdAt]
+    );
+  }
+  await pool.query('DELETE FROM orders WHERE status = $1', [status]);
 
-  saveDailyLogs();
-  saveArchived();
-  const countDeleted = toDelete.length;
-  ordersArray = ordersArray.filter(o => o.status !== status);
-  saveOrders();
-  console.log(`[BULK DELETE] Archived ${countDeleted} orders with status: ${status}`);
-  res.json({ success: true, deleted: countDeleted });
+  console.log(`[BULK DELETE] Archived ${toDelete.length} orders with status: ${status}`);
+  res.json({ success: true, deleted: toDelete.length });
 });
 
 // ADMIN: Delete screenshot only
-app.delete('/api/orders/:id/screenshot', requireAdmin, (req, res) => {
-  const order = ordersArray.find(o => o.id === req.params.id);
+app.delete('/api/orders/:id/screenshot', requireAdmin, async (req, res) => {
+  const order = await findOrderById(req.params.id);
   if (!order) return res.status(404).json({ error: 'Order not found.' });
   if (order.screenshot) {
     fs.unlink(path.join(UPLOADS_DIR, path.basename(order.screenshot)), () => {});
-    order.screenshot = null;
+    await pool.query('UPDATE orders SET screenshot = NULL WHERE id = $1', [order.id]);
   }
-  saveOrders();
-  res.json({ success: true, order });
+  const updatedOrder = await findOrderById(order.id);
+  res.json({ success: true, order: updatedOrder });
 });
 
 // ── Wallet API ────────────────────────────────────────────────
@@ -672,16 +680,39 @@ app.get('/api/referral/:username/team', async (req, res) => {
   });
 });
 // ── Daily Rewards API ─────────────────────────────────────────
-app.get('/api/daily-rewards/:username', (req, res) => {
-  const username = req.params.username.toLowerCase();
-  const myLogs = Object.entries(dailyLogsData)
-    .filter(([, log]) => log.username.toLowerCase() === username)
-    .map(([orderId, log]) => ({ orderId, ...log }));
+app.get('/api/daily-rewards/:username', async (req, res) => {
+  const r = await pool.query(
+    'SELECT * FROM daily_logs WHERE LOWER(username) = LOWER($1)',
+    [req.params.username]
+  );
+  const myLogs = r.rows.map(log => ({
+    orderId: log.order_id,
+    username: log.username,
+    tier: log.tier,
+    price: parseFloat(log.price),
+    dailyReward: parseFloat(log.daily_reward),
+    startedAt: log.started_at,
+    lastCreditedAt: log.last_credited_at,
+    totalCredited: parseFloat(log.total_credited),
+  }));
   res.json(myLogs);
 });
 
-app.get('/api/admin/daily-rewards', requireAdmin, (req, res) => {
-  res.json(dailyLogsData);
+app.get('/api/admin/daily-rewards', requireAdmin, async (req, res) => {
+  const r = await pool.query('SELECT * FROM daily_logs');
+  const result = {};
+  for (const log of r.rows) {
+    result[log.order_id] = {
+      username: log.username,
+      tier: log.tier,
+      price: parseFloat(log.price),
+      dailyReward: parseFloat(log.daily_reward),
+      startedAt: log.started_at,
+      lastCreditedAt: log.last_credited_at,
+      totalCredited: parseFloat(log.total_credited),
+    };
+  }
+  res.json(result);
 });
 
 // ── Task Rewards API ──────────────────────────────────────────
@@ -926,9 +957,9 @@ app.post('/api/admin/change-password', requireAdmin, async (req, res) => {
 });
 
 // ── Start ─────────────────────────────────────────────────────
-// ── Start ─────────────────────────────────────────────────────
 app.listen(PORT, async () => {
   console.log(`ORB-X PH server running sa http://localhost:${PORT}`);
   const allUsers = await getAllUsers();
-  console.log(`Users: ${allUsers.length} | Orders: ${ordersArray.length} | Admins: ${adminAccounts.length}`);
+  const allOrders = await getAllOrders();
+  console.log(`Users: ${allUsers.length} | Orders: ${allOrders.length} | Admins: ${adminAccounts.length}`);
 });
