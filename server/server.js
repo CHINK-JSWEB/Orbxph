@@ -86,12 +86,7 @@ function creditWallet(username, amount, note) {
   console.log(`[WALLET CREDIT] ${username} +₱${amount} (${note})`);
 }
 
-// ── Referrals ─────────────────────────────────────────────────
-let referralsData = {};
-function loadReferrals() { referralsData = readJSON(REFERRALS_FILE, {}); }
-function saveReferrals() { writeJSON(REFERRALS_FILE, referralsData); }
-loadReferrals();
-
+// ── Referrals (PostgreSQL) ────────────────────────────────────
 function hashUsername(username) {
   let hash = 5381;
   const str = username.toLowerCase();
@@ -102,38 +97,54 @@ function hashUsername(username) {
   return Math.abs(hash).toString(36).toUpperCase().padStart(4, '0').slice(-4);
 }
 
-
 function generateReferralCode(username) {
-  const tag  = username.toUpperCase().replace(/[^A-Z0-9]/g, ''); // buong username na, hindi na pinuputol
+  const tag  = username.toUpperCase().replace(/[^A-Z0-9]/g, '');
   const hash = hashUsername(username);
   return `ORBX-${tag}-${hash}`;
 }
-function isCodeUnique(code, excludeUsername) {
-  return !Object.entries(referralsData).some(([key, val]) => {
-    if (excludeUsername && key === excludeUsername.toLowerCase()) return false;
-    return val.code === code;
-  });
+
+async function isCodeUnique(code, excludeUsername) {
+  const r = await pool.query(
+    'SELECT username FROM referrals WHERE code = $1 AND LOWER(username) != LOWER($2)',
+    [code, excludeUsername || '']
+  );
+  return r.rows.length === 0;
 }
 
-function generateUniqueCode(username) {
+async function generateUniqueCode(username) {
   const baseCode = generateReferralCode(username);
-  if (isCodeUnique(baseCode, username)) return baseCode;
+  if (await isCodeUnique(baseCode, username)) return baseCode;
   for (let i = 2; i <= 99; i++) {
     const fallback = `${baseCode}-${i}`;
-    if (isCodeUnique(fallback, username)) return fallback;
+    if (await isCodeUnique(fallback, username)) return fallback;
   }
   return `ORBX-${username.toUpperCase().slice(0, 4)}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
 }
 
-function getOrCreateReferral(username) {
-  const key = username.toLowerCase();
-  if (!referralsData[key]) {
-    const code = generateUniqueCode(username);
-    referralsData[key] = { code, invites: [] };
-    saveReferrals();
+async function getReferralByUsername(username) {
+  const r = await pool.query('SELECT * FROM referrals WHERE LOWER(username) = LOWER($1)', [username]);
+  return r.rows[0] || null;
+}
+
+async function getReferralInvites(username) {
+  const r = await pool.query(
+    `SELECT invited_username AS username, order_id AS "orderId", tier, price, level, reward, credited_at AS "creditedAt"
+     FROM referral_invites WHERE LOWER(referrer_username) = LOWER($1) ORDER BY credited_at`,
+    [username]
+  );
+  return r.rows;
+}
+
+async function getOrCreateReferral(username) {
+  let entry = await getReferralByUsername(username);
+  if (!entry) {
+    const code = await generateUniqueCode(username);
+    await pool.query('INSERT INTO referrals (username, code) VALUES ($1, $2)', [username, code]);
     console.log(`[REFERRAL] Generated code for ${username}: ${code}`);
+    entry = { username, code };
   }
-  return referralsData[key];
+  const invites = await getReferralInvites(username);
+  return { code: entry.code, invites };
 }
 
 // ── Daily Logs ────────────────────────────────────────────────
@@ -152,8 +163,8 @@ const RANKS = [
 const L2_RATE = 0.10;
 const L3_RATE = 0.05;
 
-function getUserRank(username) {
-  const entry = getOrCreateReferral(username);
+async function getUserRank(username) {
+  const entry = await getOrCreateReferral(username);
   const directCount = (entry.invites || []).filter(i => (i.level || 1) === 1).length;
   const rank = RANKS.find(r => directCount >= r.minInvites) || RANKS[RANKS.length - 1];
   const nextRank = RANKS.slice().reverse().find(r => r.minInvites > directCount);
@@ -177,10 +188,10 @@ const MIN_WITHDRAWAL    = 300;
 const MIN_REFERRALS     = 2;
 const REFERRAL_CYCLE_MS = 7 * 24 * 60 * 60 * 1000;
 
-function getWithdrawEligibility(username) {
+async function getWithdrawEligibility(username) {
   const wallet  = getWallet(username);
   const balance = parseFloat((wallet.income - wallet.withdrawn).toFixed(2));
-  const referralEntry = getOrCreateReferral(username);
+  const referralEntry = await getOrCreateReferral(username);
   const invites = referralEntry.invites || [];
   const cycleStart = wallet.withdrawCycleStart || null;
 
@@ -350,8 +361,8 @@ app.post('/api/signup', async (req, res) => {
   let referredBy = null;
   if (referralCode) {
     const codeUpper = referralCode.trim().toUpperCase();
-    const inviterEntry = Object.entries(referralsData).find(([, v]) => v.code === codeUpper);
-    if (inviterEntry) referredBy = inviterEntry[0];
+    const inviterRow = await pool.query('SELECT username FROM referrals WHERE code = $1', [codeUpper]);
+    if (inviterRow.rows[0]) referredBy = inviterRow.rows[0].username;
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
@@ -360,7 +371,7 @@ app.post('/api/signup', async (req, res) => {
      VALUES ($1, $2, $3, $4, false)`,
     [username, phone, passwordHash, referredBy]
   );
-  getOrCreateReferral(username);
+  await getOrCreateReferral(username);
 
   if (referredBy) {
     creditWallet(username, REFERRAL_SIGNUP_BONUS, `Signup bonus - referred by ${referredBy}`);
@@ -436,7 +447,7 @@ app.get('/api/orders/mine/:username', (req, res) => {
 app.get('/api/orders', requireAdmin, (req, res) => res.json(ordersArray.slice().reverse()));
 
 // ADMIN: Update order status
-app.patch('/api/orders/:id', requireAdmin, (req, res) => {
+app.patch('/api/orders/:id', requireAdmin, async (req, res) => {
   const order = ordersArray.find(o => o.id === req.params.id);
   if (!order) return res.status(404).json({ error: 'Order not found.' });
   const { status, feedback } = req.body || {};
@@ -467,42 +478,39 @@ app.patch('/api/orders/:id', requireAdmin, (req, res) => {
       saveDailyLogs();
       console.log(`[DAILY LOG] Started for ${order.username} - ₱${dailyReward}/day (${order.tier})`);
 
-      // Multi-Level Referral Reward (Level 1: 25%, Level 2: 10%, Level 3: 5%)
+     // Multi-Level Referral Reward (Level 1: 25%, Level 2: 10%, Level 3: 5%)
       let chainUsername = order.username;
       for (let level = 1; level <= 3; level++) {
-        const chainUser = usersArray.find(
-          u => u.username.toLowerCase() === chainUsername.toLowerCase()
-        );
-        if (!chainUser || !chainUser.referredBy) break;
+        const chainUser = await findUserByUsername(chainUsername);
+        if (!chainUser || !chainUser.referred_by) break;
 
-        const inviterKey    = chainUser.referredBy.toLowerCase();
-        const referralEntry = referralsData[inviterKey];
+        const inviterKey     = chainUser.referred_by;
+        const referralEntry  = await getReferralByUsername(inviterKey);
 
         if (referralEntry) {
-          const alreadyCredited = referralEntry.invites.some(
-            i => i.orderId === order.id && i.level === level
+          const alreadyCreditedRow = await pool.query(
+            'SELECT id FROM referral_invites WHERE referrer_username = $1 AND order_id = $2 AND level = $3',
+            [referralEntry.username, order.id, level]
           );
+          const alreadyCredited = alreadyCreditedRow.rows.length > 0;
+
           if (!alreadyCredited) {
             let rate;
             if (level === 1) {
-              rate = getUserRank(inviterKey).l1Rate; // rank-based para sa direct invite
+              rate = (await getUserRank(inviterKey)).l1Rate;
             } else if (level === 2) {
               rate = L2_RATE;
             } else {
               rate = L3_RATE;
             }
             const reward = parseFloat((order.price * rate).toFixed(2));
-            referralEntry.invites.push({
-              username:   order.username,
-              orderId:    order.id,
-              tier:       order.tier,
-              price:      order.price,
-              level,
-              reward,
-              creditedAt: order.approvedAt,
-            });
-            saveReferrals();
-            const inviterUser = usersArray.find(u => u.username.toLowerCase() === inviterKey);
+            await pool.query(
+              `INSERT INTO referral_invites
+               (referrer_username, invited_username, order_id, tier, price, level, reward, credited_at)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+              [referralEntry.username, order.username, order.id, order.tier, order.price, level, reward, order.approvedAt]
+            );
+            const inviterUser = await findUserByUsername(inviterKey);
             if (inviterUser) {
               creditWallet(
                 inviterUser.username, reward,
@@ -511,7 +519,7 @@ app.patch('/api/orders/:id', requireAdmin, (req, res) => {
             }
           }
         }
-        chainUsername = chainUser.referredBy;
+        chainUsername = chainUser.referred_by;
       }
     }
 
@@ -605,45 +613,57 @@ app.post('/api/wallet/:username/credit', requireAdmin, (req, res) => {
 });
 
 // ── Referral API ──────────────────────────────────────────────
-app.get('/api/referral/:username', (req, res) => {
-  const entry = getOrCreateReferral(req.params.username);
+app.get('/api/referral/:username', async (req, res) => {
+  const entry = await getOrCreateReferral(req.params.username);
   res.json(entry);
 });
 
-app.get('/api/admin/referrals', requireAdmin, (req, res) => {
-  res.json(referralsData);
+app.get('/api/admin/referrals', requireAdmin, async (req, res) => {
+  const referralsRows = await pool.query('SELECT username, code FROM referrals');
+  const result = {};
+  for (const row of referralsRows.rows) {
+    result[row.username.toLowerCase()] = await getOrCreateReferral(row.username);
+  }
+  res.json(result);
 });
 
-app.post('/api/admin/referrals/:username/regenerate', requireAdmin, (req, res) => {
-  const key = req.params.username.toLowerCase();
-  if (!referralsData[key]) return res.status(404).json({ error: 'User referral not found.' });
-  const newCode = generateUniqueCode(req.params.username);
-  referralsData[key].code = newCode;
-  saveReferrals();
+app.post('/api/admin/referrals/:username/regenerate', requireAdmin, async (req, res) => {
+  const entry = await getReferralByUsername(req.params.username);
+  if (!entry) return res.status(404).json({ error: 'User referral not found.' });
+  const newCode = await generateUniqueCode(req.params.username);
+  await pool.query('UPDATE referrals SET code = $1 WHERE LOWER(username) = LOWER($2)', [newCode, req.params.username]);
   console.log(`[REFERRAL] Admin regenerated code for ${req.params.username}: ${newCode}`);
   res.json({ success: true, code: newCode });
 });
 
 // CLIENT: My Team (3-level downline)
-app.get('/api/referral/:username/team', (req, res) => {
+app.get('/api/referral/:username/team', async (req, res) => {
   const username = req.params.username;
 
-  function getDirectInvitees(uname) {
-    return usersArray.filter(
-      u => u.referredBy && u.referredBy.toLowerCase() === uname.toLowerCase()
+  async function getDirectInvitees(uname) {
+    const r = await pool.query(
+      'SELECT username, phone, created_at FROM users WHERE LOWER(referred_by) = LOWER($1)',
+      [uname]
     );
+    return r.rows;
   }
 
-  const level1 = getDirectInvitees(username);
+  const level1 = await getDirectInvitees(username);
   let level2 = [];
-  level1.forEach(u => { level2 = level2.concat(getDirectInvitees(u.username)); });
+  for (const u of level1) {
+    const invitees = await getDirectInvitees(u.username);
+    level2 = level2.concat(invitees);
+  }
   let level3 = [];
-  level2.forEach(u => { level3 = level3.concat(getDirectInvitees(u.username)); });
+  for (const u of level2) {
+    const invitees = await getDirectInvitees(u.username);
+    level3 = level3.concat(invitees);
+  }
 
   function localPhone(p){
     return '0' + String(p || '').replace('+63', '');
   }
-  const mapUser = u => ({ username: u.username, phone: localPhone(u.phone), joinedAt: u.createdAt });
+  const mapUser = u => ({ username: u.username, phone: localPhone(u.phone), joinedAt: u.created_at });
 
   res.json({
     level1: level1.map(mapUser),
@@ -740,12 +760,12 @@ app.delete('/api/admin/tasks/:id', requireAdmin, (req, res) => {
 // ── Withdrawal API ────────────────────────────────────────────
 
 // CLIENT: eligibility check
-app.get('/api/withdraw/eligibility/:username', (req, res) => {
-  res.json(getWithdrawEligibility(req.params.username));
+app.get('/api/withdraw/eligibility/:username', async (req, res) => {
+  res.json(await getWithdrawEligibility(req.params.username));
 });
 
 // CLIENT: submit withdrawal request
-app.post('/api/withdraw', (req, res) => {
+app.post('/api/withdraw', async (req, res) => {
   const { username, amount, accountNumber, accountName, method, notes } = req.body || {};
 
   if (!username || !accountNumber || !accountName)
@@ -755,7 +775,7 @@ app.post('/api/withdraw', (req, res) => {
   if (!amt || isNaN(amt) || amt <= 0)
     return res.status(400).json({ error: 'Invalid na amount.' });
 
-  const elig = getWithdrawEligibility(username);
+  const elig = await getWithdrawEligibility(username);
 
   if (elig.hasPendingWithdrawal)
     return res.status(409).json({
