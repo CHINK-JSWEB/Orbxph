@@ -89,22 +89,32 @@ async function getArchivedOrdersByUsername(username) {
   return r.rows.map(mapOrderRow).map(o => ({ ...o, _archived: true }));
 }
 
-// ── Wallets ───────────────────────────────────────────────────
-let walletsData = {};
-function loadWallets() { walletsData = readJSON(WALLETS_FILE, {}); }
-function saveWallets() { writeJSON(WALLETS_FILE, walletsData); }
-loadWallets();
-
-function getWallet(username) {
+// ── Wallets (PostgreSQL) ──────────────────────────────────────
+async function getWallet(username) {
   const key = username.toLowerCase();
-  if (!walletsData[key]) walletsData[key] = { income: 0, withdrawn: 0, withdrawCycleStart: null };
-  if (walletsData[key].withdrawCycleStart === undefined) walletsData[key].withdrawCycleStart = null;
-  return walletsData[key];
+  let r = await pool.query('SELECT * FROM wallets WHERE LOWER(username) = LOWER($1)', [key]);
+  if (!r.rows[0]) {
+    await pool.query(
+      'INSERT INTO wallets (username, income, withdrawn, withdraw_cycle_start) VALUES ($1, 0, 0, NULL)',
+      [username]
+    );
+    r = await pool.query('SELECT * FROM wallets WHERE LOWER(username) = LOWER($1)', [key]);
+  }
+  const row = r.rows[0];
+  return {
+    income: parseFloat(row.income),
+    withdrawn: parseFloat(row.withdrawn),
+    withdrawCycleStart: row.withdraw_cycle_start,
+  };
 }
-function creditWallet(username, amount, note) {
-  const w = getWallet(username);
-  w.income = parseFloat((w.income + amount).toFixed(2));
-  saveWallets();
+
+async function creditWallet(username, amount, note) {
+  await pool.query(
+    `INSERT INTO wallets (username, income, withdrawn)
+     VALUES ($1, $2, 0)
+     ON CONFLICT (username) DO UPDATE SET income = wallets.income + $2, updated_at = NOW()`,
+    [username, amount]
+  );
   console.log(`[WALLET CREDIT] ${username} +₱${amount} (${note})`);
 }
 
@@ -207,7 +217,7 @@ const MIN_REFERRALS     = 2;
 const REFERRAL_CYCLE_MS = 7 * 24 * 60 * 60 * 1000;
 
 async function getWithdrawEligibility(username) {
-  const wallet  = getWallet(username);
+  const wallet  = await getWallet(username);
   const balance = parseFloat((wallet.income - wallet.withdrawn).toFixed(2));
   const referralEntry = await getOrCreateReferral(username);
   const invites = referralEntry.invites || [];
@@ -259,7 +269,7 @@ async function processDailyRewards() {
     const lastCredited = new Date(log.last_credited_at).getTime();
     const elapsed = now - lastCredited;
     if (elapsed >= 24 * 60 * 60 * 1000) {
-      creditWallet(log.username, parseFloat(log.daily_reward), `Daily reward - ${log.tier}`);
+      await creditWallet(log.username, parseFloat(log.daily_reward), `Daily reward - ${log.tier}`);
       const newTotal = parseFloat((parseFloat(log.total_credited || 0) + parseFloat(log.daily_reward)).toFixed(2));
       await pool.query(
         'UPDATE daily_logs SET last_credited_at = NOW(), total_credited = $1 WHERE order_id = $2',
@@ -393,7 +403,7 @@ app.post('/api/signup', async (req, res) => {
   await getOrCreateReferral(username);
 
   if (referredBy) {
-    creditWallet(username, REFERRAL_SIGNUP_BONUS, `Signup bonus - referred by ${referredBy}`);
+    await creditWallet(username, REFERRAL_SIGNUP_BONUS, `Signup bonus - referred by ${referredBy}`);
     console.log(`[SIGNUP BONUS] ${username} +₱${REFERRAL_SIGNUP_BONUS} (referred by ${referredBy})`);
   }
 
@@ -521,7 +531,7 @@ app.patch('/api/orders/:id', requireAdmin, async (req, res) => {
             );
             const inviterUser = await findUserByUsername(inviterKey);
             if (inviterUser) {
-              creditWallet(
+              await creditWallet(
                 inviterUser.username, reward,
                 `Referral reward L${level} - ${order.username} (${order.tier})`
               );
@@ -607,19 +617,20 @@ app.delete('/api/orders/:id/screenshot', requireAdmin, async (req, res) => {
   res.json({ success: true, order: updatedOrder });
 });
 
+
 // ── Wallet API ────────────────────────────────────────────────
-app.get('/api/wallet/:username', (req, res) => {
-  const w = getWallet(req.params.username);
+app.get('/api/wallet/:username', async (req, res) => {
+  const w = await getWallet(req.params.username);
   res.json(w);
 });
 
-app.post('/api/wallet/:username/credit', requireAdmin, (req, res) => {
+app.post('/api/wallet/:username/credit', requireAdmin, async (req, res) => {
   const { amount, note } = req.body || {};
   if (!amount || isNaN(amount)) return res.status(400).json({ error: 'Invalid amount.' });
-  creditWallet(req.params.username, parseFloat(amount), note || 'Admin credit');
-  res.json({ success: true, wallet: getWallet(req.params.username) });
+  await creditWallet(req.params.username, parseFloat(amount), note || 'Admin credit');
+  const w = await getWallet(req.params.username);
+  res.json({ success: true, wallet: w });
 });
-
 // ── Referral API ──────────────────────────────────────────────
 app.get('/api/referral/:username', async (req, res) => {
   const entry = await getOrCreateReferral(req.params.username);
@@ -729,7 +740,7 @@ app.get('/api/task-logs/:username', (req, res) => {
   res.json(logs);
 });
 
-app.post('/api/task-rewards/:username/claim/:taskId', (req, res) => {
+app.post('/api/task-rewards/:username/claim/:taskId', async (req, res) => {
   const username = req.params.username;
   const key      = username.toLowerCase();
   const task     = tasksArray.find(t => t.id === req.params.taskId);
@@ -744,7 +755,7 @@ app.post('/api/task-rewards/:username/claim/:taskId', (req, res) => {
     reward:      task.reward,
   });
   saveTaskLogs();
-  creditWallet(username, task.reward, `Task reward - ${task.title}`);
+  await creditWallet(username, task.reward, `Task reward - ${task.title}`);
   res.json({ success: true });
 });
 
@@ -867,7 +878,7 @@ app.get('/api/admin/withdrawals', requireAdmin, (req, res) => {
 });
 
 // ADMIN: update withdrawal status
-app.patch('/api/admin/withdrawals/:id', requireAdmin, (req, res) => {
+app.patch('/api/admin/withdrawals/:id', requireAdmin, async (req, res) => {
   const w = withdrawalsArray.find(x => x.id === req.params.id);
   if (!w) return res.status(404).json({ error: 'Withdrawal not found.' });
 
@@ -892,25 +903,30 @@ app.patch('/api/admin/withdrawals/:id', requireAdmin, (req, res) => {
 
     // ── APPROVE: deduct balance + start new referral cycle ────
     if (status === 'approved' && w.status !== 'approved') {
-      const wallet  = getWallet(w.username);
+      const wallet  = await getWallet(w.username);
       const balance = parseFloat((wallet.income - wallet.withdrawn).toFixed(2));
       if (w.amount > balance) {
         return res.status(400).json({
           error: 'Hindi sapat ang balance ng user para sa withdrawal na ito.'
         });
       }
-      wallet.withdrawn          = parseFloat((wallet.withdrawn + w.amount).toFixed(2));
-      wallet.withdrawCycleStart = new Date().toISOString();
-      saveWallets();
+      const newWithdrawn = parseFloat((wallet.withdrawn + w.amount).toFixed(2));
+      await pool.query(
+        'UPDATE wallets SET withdrawn = $1, withdraw_cycle_start = NOW() WHERE LOWER(username) = LOWER($2)',
+        [newWithdrawn, w.username]
+      );
       w.processedAt = new Date().toISOString();
       console.log(`[WITHDRAW APPROVED] ${w.username} -> ₱${w.amount}. Bagong 7-day referral cycle nagsimula.`);
     }
 
     // ── REJECT / FLAG: ibalik ang pera kung dati nang approved ─
     if ((status === 'rejected' || status === 'flagged') && w.status === 'approved') {
-      const wallet = getWallet(w.username);
-      wallet.withdrawn = parseFloat((wallet.withdrawn - w.amount).toFixed(2));
-      saveWallets();
+      const wallet = await getWallet(w.username);
+      const newWithdrawn = parseFloat((wallet.withdrawn - w.amount).toFixed(2));
+      await pool.query(
+        'UPDATE wallets SET withdrawn = $1 WHERE LOWER(username) = LOWER($2)',
+        [newWithdrawn, w.username]
+      );
       console.log(`[WITHDRAW REVERTED] ${w.username} +₱${w.amount} ibinalik sa balance.`);
     }
 
