@@ -284,15 +284,37 @@ async function getWithdrawEligibility(username) {
   };
 }
 
-// ── Tasks ─────────────────────────────────────────────────────
-let tasksArray   = [];
-let taskLogsData = {};
-function loadTasks()    { tasksArray   = readJSON(TASKS_FILE, []); }
-function saveTasks()    { writeJSON(TASKS_FILE, tasksArray); }
-function loadTaskLogs() { taskLogsData = readJSON(TASK_LOGS_FILE, {}); }
-function saveTaskLogs() { writeJSON(TASK_LOGS_FILE, taskLogsData); }
-loadTasks();
-loadTaskLogs();
+// ── Tasks (PostgreSQL) ────────────────────────────────────────
+function mapTaskRow(t) {
+  return {
+    id: t.id,
+    title: t.title,
+    description: t.description,
+    reward: parseFloat(t.reward),
+    active: t.active,
+    createdAt: t.created_at,
+  };
+}
+async function getAllTasks() {
+  const r = await pool.query('SELECT * FROM tasks ORDER BY created_at');
+  return r.rows.map(mapTaskRow);
+}
+async function findTaskById(id) {
+  const r = await pool.query('SELECT * FROM tasks WHERE id = $1', [id]);
+  return r.rows[0] ? mapTaskRow(r.rows[0]) : null;
+}
+async function getCompletedTaskIds(username) {
+  const r = await pool.query('SELECT task_id FROM task_logs WHERE LOWER(username) = LOWER($1)', [username]);
+  return r.rows.map(row => row.task_id);
+}
+async function getTaskLogsByUsername(username) {
+  const r = await pool.query(
+    `SELECT task_id AS "taskId", completed_at AS "completedAt", reward
+     FROM task_logs WHERE LOWER(username) = LOWER($1) ORDER BY completed_at`,
+    [username]
+  );
+  return r.rows.map(row => ({ ...row, reward: parseFloat(row.reward) }));
+}
 // ── Daily Reward Scheduler ────────────────────────────────────
 async function processDailyRewards() {
   const now = Date.now();
@@ -314,19 +336,21 @@ async function processDailyRewards() {
 setInterval(processDailyRewards, 60 * 1000);
 
 
-// ── Admin ─────────────────────────────────────────────────────
-let adminAccounts = [];
+// ── Admin (PostgreSQL) ────────────────────────────────────────
 const adminTokens = new Map();
 
-function loadAdmins() {
-  if (!fs.existsSync(ADMIN_FILE)) return;
-  try {
-    const raw = JSON.parse(fs.readFileSync(ADMIN_FILE, 'utf8'));
-    adminAccounts = Array.isArray(raw) ? raw : [raw];
-  } catch(e) {}
+async function getAdminCount() {
+  const r = await pool.query('SELECT COUNT(*) FROM admins');
+  return parseInt(r.rows[0].count, 10);
 }
-function saveAdmins() { writeJSON(ADMIN_FILE, adminAccounts); }
-loadAdmins();
+async function findAdminByUsername(username) {
+  const r = await pool.query('SELECT * FROM admins WHERE LOWER(username) = LOWER($1)', [username]);
+  return r.rows[0] || null;
+}
+async function getAllAdmins() {
+  const r = await pool.query('SELECT username, created_at FROM admins ORDER BY created_at');
+  return r.rows;
+}
 
 function requireAdmin(req, res, next) {
   const header = req.headers.authorization || '';
@@ -342,7 +366,10 @@ function requireAdmin(req, res, next) {
 // ═══════════════════════════════════════════════════════════════
 
 // ── Admin auth ────────────────────────────────────────────────
-app.get('/api/admin/exists', (req, res) => res.json({ exists: adminAccounts.length > 0 }));
+app.get('/api/admin/exists', async (req, res) => {
+  const count = await getAdminCount();
+  res.json({ exists: count > 0 });
+});
 
 app.post('/api/admin/setup', async (req, res) => {
   const { username, password } = req.body || {};
@@ -350,23 +377,22 @@ app.post('/api/admin/setup', async (req, res) => {
     return res.status(400).json({ error: 'Lahat ng fields kailangan punan.' });
   if (password.length < 6)
     return res.status(400).json({ error: 'Minimum 6 characters ang password.' });
-  if (adminAccounts.find(a => a.username.toLowerCase() === username.toLowerCase()))
+  const existing = await findAdminByUsername(username);
+  if (existing)
     return res.status(409).json({ error: 'Ginagamit na ang username na iyan.' });
   const passwordHash = await bcrypt.hash(password, 10);
-  adminAccounts.push({ username, passwordHash, createdAt: new Date().toISOString() });
-  saveAdmins();
+  await pool.query('INSERT INTO admins (username, password_hash) VALUES ($1, $2)', [username, passwordHash]);
   res.json({ success: true });
 });
 
 app.post('/api/admin/login', async (req, res) => {
   const { username, password } = req.body || {};
-  if (!adminAccounts.length)
+  const count = await getAdminCount();
+  if (!count)
     return res.status(404).json({ error: 'Wala pang admin account.' });
-  const admin = adminAccounts.find(
-    a => a.username.toLowerCase() === (username || '').toLowerCase()
-  );
+  const admin = await findAdminByUsername(username || '');
   if (!admin) return res.status(401).json({ error: 'Maling username o password.' });
-  const match = await bcrypt.compare(password, admin.passwordHash);
+  const match = await bcrypt.compare(password, admin.password_hash);
   if (!match) return res.status(401).json({ error: 'Maling username o password.' });
   const token = crypto.randomBytes(24).toString('hex');
   adminTokens.set(token, { username: admin.username });
@@ -380,8 +406,9 @@ app.post('/api/admin/logout', requireAdmin, (req, res) => {
   res.json({ success: true });
 });
 
-app.get('/api/admin/list', requireAdmin, (req, res) => {
-  res.json(adminAccounts.map(a => ({ username: a.username, createdAt: a.createdAt })));
+app.get('/api/admin/list', requireAdmin, async (req, res) => {
+  const admins = await getAllAdmins();
+  res.json(admins.map(a => ({ username: a.username, createdAt: a.created_at })));
 });
 
 app.get('/api/admin/users', requireAdmin, async (req, res) => {
@@ -759,75 +786,75 @@ app.get('/api/admin/daily-rewards', requireAdmin, async (req, res) => {
 });
 
 // ── Task Rewards API ──────────────────────────────────────────
-app.get('/api/task-rewards/:username', (req, res) => {
-  const username    = req.params.username.toLowerCase();
-  const myCompleted = (taskLogsData[username] || []).map(l => l.taskId);
-  const available   = tasksArray.filter(t => t.active && !myCompleted.includes(t.id));
+app.get('/api/task-rewards/:username', async (req, res) => {
+  const myCompleted = await getCompletedTaskIds(req.params.username);
+  const allTasks = await getAllTasks();
+  const available = allTasks.filter(t => t.active && !myCompleted.includes(t.id));
   res.json(available);
 });
 
-app.get('/api/task-logs/:username', (req, res) => {
-  const key  = req.params.username.toLowerCase();
-  const logs = taskLogsData[key] || [];
+app.get('/api/task-logs/:username', async (req, res) => {
+  const logs = await getTaskLogsByUsername(req.params.username);
   res.json(logs);
 });
 
 app.post('/api/task-rewards/:username/claim/:taskId', async (req, res) => {
   const username = req.params.username;
-  const key      = username.toLowerCase();
-  const task     = tasksArray.find(t => t.id === req.params.taskId);
+  const task = await findTaskById(req.params.taskId);
   if (!task || !task.active)
     return res.status(404).json({ error: 'Task not found o hindi na active.' });
-  if (!taskLogsData[key]) taskLogsData[key] = [];
-  const already = taskLogsData[key].some(l => l.taskId === task.id);
-  if (already) return res.status(409).json({ error: 'Na-claim mo na ang task na ito.' });
-  taskLogsData[key].push({
-    taskId:      task.id,
-    completedAt: new Date().toISOString(),
-    reward:      task.reward,
-  });
-  saveTaskLogs();
+
+  const already = await pool.query(
+    'SELECT id FROM task_logs WHERE LOWER(username) = LOWER($1) AND task_id = $2',
+    [username, task.id]
+  );
+  if (already.rows.length > 0) return res.status(409).json({ error: 'Na-claim mo na ang task na ito.' });
+
+  await pool.query(
+    'INSERT INTO task_logs (username, task_id, reward) VALUES ($1, $2, $3)',
+    [username, task.id, task.reward]
+  );
   await creditWallet(username, task.reward, `Task reward - ${task.title}`);
   res.json({ success: true });
 });
 
-app.get('/api/admin/tasks', requireAdmin, (req, res) => {
-  res.json(tasksArray);
+app.get('/api/admin/tasks', requireAdmin, async (req, res) => {
+  const tasks = await getAllTasks();
+  res.json(tasks);
 });
 
-app.post('/api/admin/tasks', requireAdmin, (req, res) => {
+app.post('/api/admin/tasks', requireAdmin, async (req, res) => {
   const { title, description, reward } = req.body || {};
   if (!title || !reward) return res.status(400).json({ error: 'Title at reward kailangan.' });
-  const task = {
-    id:          Date.now().toString(36),
-    title,
-    description: description || '',
-    reward:      Number(reward) || 0,
-    active:      true,
-    createdAt:   new Date().toISOString(),
-  };
-  tasksArray.push(task);
-  saveTasks();
+  const id = Date.now().toString(36);
+  await pool.query(
+    'INSERT INTO tasks (id, title, description, reward, active) VALUES ($1, $2, $3, $4, true)',
+    [id, title, description || '', Number(reward) || 0]
+  );
+  const task = await findTaskById(id);
   res.json({ success: true, task });
 });
 
-app.patch('/api/admin/tasks/:id', requireAdmin, (req, res) => {
-  const task = tasksArray.find(t => t.id === req.params.id);
+app.patch('/api/admin/tasks/:id', requireAdmin, async (req, res) => {
+  const task = await findTaskById(req.params.id);
   if (!task) return res.status(404).json({ error: 'Task not found.' });
   const { title, description, reward, active } = req.body || {};
-  if (title !== undefined)       task.title       = title;
-  if (description !== undefined) task.description = description;
-  if (reward !== undefined)      task.reward      = Number(reward) || 0;
-  if (active !== undefined)      task.active      = !!active;
-  saveTasks();
-  res.json({ success: true, task });
+  const newTitle = title !== undefined ? title : task.title;
+  const newDesc = description !== undefined ? description : task.description;
+  const newReward = reward !== undefined ? (Number(reward) || 0) : task.reward;
+  const newActive = active !== undefined ? !!active : task.active;
+  await pool.query(
+    'UPDATE tasks SET title = $1, description = $2, reward = $3, active = $4 WHERE id = $5',
+    [newTitle, newDesc, newReward, newActive, task.id]
+  );
+  const updatedTask = await findTaskById(task.id);
+  res.json({ success: true, task: updatedTask });
 });
 
-app.delete('/api/admin/tasks/:id', requireAdmin, (req, res) => {
-  const idx = tasksArray.findIndex(t => t.id === req.params.id);
-  if (idx === -1) return res.status(404).json({ error: 'Task not found.' });
-  tasksArray.splice(idx, 1);
-  saveTasks();
+app.delete('/api/admin/tasks/:id', requireAdmin, async (req, res) => {
+  const task = await findTaskById(req.params.id);
+  if (!task) return res.status(404).json({ error: 'Task not found.' });
+  await pool.query('DELETE FROM tasks WHERE id = $1', [task.id]);
   res.json({ success: true });
 });
 
@@ -992,16 +1019,14 @@ app.post('/api/change-password', async (req, res) => {
 app.post('/api/admin/change-password', requireAdmin, async (req, res) => {
   const { currentPassword, newPassword } = req.body || {};
   const adminUsername = req.adminUser.username;
-  const admin = adminAccounts.find(
-    a => a.username.toLowerCase() === adminUsername.toLowerCase()
-  );
+  const admin = await findAdminByUsername(adminUsername);
   if (!admin) return res.status(404).json({ error: 'Admin not found.' });
-  const match = await bcrypt.compare(currentPassword, admin.passwordHash);
+  const match = await bcrypt.compare(currentPassword, admin.password_hash);
   if (!match) return res.status(401).json({ error: 'Mali ang current password.' });
   if (!newPassword || newPassword.length < 6)
     return res.status(400).json({ error: 'Minimum 6 characters ang bagong password.' });
-  admin.passwordHash = await bcrypt.hash(newPassword, 10);
-  saveAdmins();
+  const newHash = await bcrypt.hash(newPassword, 10);
+  await pool.query('UPDATE admins SET password_hash = $1 WHERE LOWER(username) = LOWER($2)', [newHash, adminUsername]);
   res.json({ success: true });
 });
 
@@ -1010,5 +1035,6 @@ app.listen(PORT, async () => {
   console.log(`ORB-X PH server running sa http://localhost:${PORT}`);
   const allUsers = await getAllUsers();
   const allOrders = await getAllOrders();
-  console.log(`Users: ${allUsers.length} | Orders: ${allOrders.length} | Admins: ${adminAccounts.length}`);
+  const adminCount = await getAdminCount();
+  console.log(`Users: ${allUsers.length} | Orders: ${allOrders.length} | Admins: ${adminCount}`);
 });
