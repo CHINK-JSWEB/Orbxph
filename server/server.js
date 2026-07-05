@@ -39,23 +39,21 @@ function readJSON(file, fallback) {
 }
 function writeJSON(file, data) { fs.writeFileSync(file, JSON.stringify(data, null, 2)); }
 
-// ── Users ─────────────────────────────────────────────────────
-let usersArray = [];
-const usersByPhone    = new Map();
-const usersByUsername = new Map();
+// ── Users (PostgreSQL) ────────────────────────────────────────
+const pool = require('./db');
 
-function loadUsers() {
-  usersArray = [];
-  usersByPhone.clear();
-  usersByUsername.clear();
-  usersArray = readJSON(USERS_FILE, []);
-  for (const u of usersArray) {
-    usersByPhone.set(normalizePhone(u.phone), u);
-    usersByUsername.set(u.username.toLowerCase(), u);
-  }
+async function findUserByUsername(username) {
+  const r = await pool.query('SELECT * FROM users WHERE LOWER(username) = LOWER($1)', [username]);
+  return r.rows[0] || null;
 }
-function saveUsers() { writeJSON(USERS_FILE, usersArray); }
-loadUsers();
+async function findUserByPhone(phone) {
+  const r = await pool.query('SELECT * FROM users WHERE phone = $1', [phone]);
+  return r.rows[0] || null;
+}
+async function getAllUsers() {
+  const r = await pool.query('SELECT * FROM users ORDER BY created_at');
+  return r.rows;
+}
 
 // ── Orders ────────────────────────────────────────────────────
 let ordersArray = [];
@@ -314,23 +312,22 @@ app.get('/api/admin/list', requireAdmin, (req, res) => {
   res.json(adminAccounts.map(a => ({ username: a.username, createdAt: a.createdAt })));
 });
 
-app.get('/api/admin/users', requireAdmin, (req, res) => {
-  res.json(usersArray.map(u => ({
+app.get('/api/admin/users', requireAdmin, async (req, res) => {
+  const users = await getAllUsers();
+  res.json(users.map(u => ({
     username:  u.username,
     phone:     u.phone,
-    createdAt: u.createdAt,
+    createdAt: u.created_at,
     blocked:   !!u.blocked,
   })));
 });
 
-app.patch('/api/admin/users/:username/block', requireAdmin, (req, res) => {
-  const user = usersArray.find(
-    u => u.username.toLowerCase() === req.params.username.toLowerCase()
-  );
+app.patch('/api/admin/users/:username/block', requireAdmin, async (req, res) => {
+  const user = await findUserByUsername(req.params.username);
   if (!user) return res.status(404).json({ error: 'User not found.' });
-  user.blocked = !user.blocked;
-  saveUsers();
-  res.json({ success: true, blocked: user.blocked });
+  const newBlocked = !user.blocked;
+  await pool.query('UPDATE users SET blocked = $1 WHERE username = $2', [newBlocked, user.username]);
+  res.json({ success: true, blocked: newBlocked });
 });
 
 // ── Customer auth ─────────────────────────────────────────────
@@ -341,9 +338,13 @@ app.post('/api/signup', async (req, res) => {
   if (password.length < 6)
     return res.status(400).json({ error: 'Dapat hindi bababa sa 6 characters ang password.' });
   const phone = normalizePhone(rawPhone);
-  if (usersByUsername.has(username.toLowerCase()))
+
+  const existingUsername = await findUserByUsername(username);
+  if (existingUsername)
     return res.status(409).json({ error: 'Ginagamit na ang username na iyan.' });
-  if (usersByPhone.has(phone))
+
+  const existingPhone = await findUserByPhone(phone);
+  if (existingPhone)
     return res.status(409).json({ error: 'May account na rehistrado sa number na iyan.' });
 
   let referredBy = null;
@@ -354,18 +355,13 @@ app.post('/api/signup', async (req, res) => {
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
-  const newUser = {
-    username, phone, passwordHash,
-    createdAt: new Date().toISOString(),
-    blocked: false, referredBy,
-  };
-  usersArray.push(newUser);
-  usersByPhone.set(phone, newUser);
-  usersByUsername.set(username.toLowerCase(), newUser);
-  saveUsers();
+  await pool.query(
+    `INSERT INTO users (username, phone, password_hash, referred_by, blocked)
+     VALUES ($1, $2, $3, $4, false)`,
+    [username, phone, passwordHash, referredBy]
+  );
   getOrCreateReferral(username);
 
-  // ₱100 signup bonus kapag gumamit ng valid na referral code
   if (referredBy) {
     creditWallet(username, REFERRAL_SIGNUP_BONUS, `Signup bonus - referred by ${referredBy}`);
     console.log(`[SIGNUP BONUS] ${username} +₱${REFERRAL_SIGNUP_BONUS} (referred by ${referredBy})`);
@@ -379,11 +375,11 @@ app.post('/api/login', async (req, res) => {
   if (!rawPhone || !password)
     return res.status(400).json({ error: 'Kailangan ng number at password.' });
   const phone = normalizePhone(rawPhone);
-  const user  = usersByPhone.get(phone);
+  const user  = await findUserByPhone(phone);
   if (!user) return res.status(401).json({ error: 'Walang account na may ganitong number.' });
   if (user.blocked)
     return res.status(403).json({ error: 'Ang account mo ay na-block. Makipag-ugnayan sa Customer Service.' });
-  const match = await bcrypt.compare(password, user.passwordHash);
+  const match = await bcrypt.compare(password, user.password_hash);
   if (!match) return res.status(401).json({ error: 'Maling password.' });
   res.json({ success: true, username: user.username, phone: user.phone });
 });
@@ -881,14 +877,14 @@ app.post('/api/change-password', async (req, res) => {
   if(!rawPhone || !currentPassword || !newPassword)
     return res.status(400).json({ error: 'Lahat ng fields kailangan punan.' });
   const phone = normalizePhone(rawPhone);
-  const user  = usersByPhone.get(phone);
+  const user  = await findUserByPhone(phone);
   if(!user) return res.status(404).json({ error: 'User not found.' });
-  const match = await bcrypt.compare(currentPassword, user.passwordHash);
+  const match = await bcrypt.compare(currentPassword, user.password_hash);
   if(!match) return res.status(401).json({ error: 'Mali ang current password.' });
   if(newPassword.length < 6)
     return res.status(400).json({ error: 'Minimum 6 characters ang new password.' });
-  user.passwordHash = await bcrypt.hash(newPassword, 10);
-  saveUsers();
+  const newHash = await bcrypt.hash(newPassword, 10);
+  await pool.query('UPDATE users SET password_hash = $1 WHERE username = $2', [newHash, user.username]);
   res.json({ success: true });
 });
 
@@ -910,36 +906,9 @@ app.post('/api/admin/change-password', requireAdmin, async (req, res) => {
 });
 
 // ── Start ─────────────────────────────────────────────────────
-app.listen(PORT, () => {
+// ── Start ─────────────────────────────────────────────────────
+app.listen(PORT, async () => {
   console.log(`ORB-X PH server running sa http://localhost:${PORT}`);
-  console.log(`Users: ${usersArray.length} | Orders: ${ordersArray.length} | Admins: ${adminAccounts.length}`);
-
-  let backfilled = 0;
-  const seenCodes = new Set();
-
-  for (const u of usersArray) {
-    const key = u.username.toLowerCase();
-    if (!referralsData[key]) {
-      const code = generateUniqueCode(u.username);
-      referralsData[key] = { code, invites: [] };
-      seenCodes.add(code);
-      backfilled++;
-    } else {
-      const existing = referralsData[key].code;
-      if (seenCodes.has(existing)) {
-        const newCode = generateUniqueCode(u.username);
-        console.log(`[BACKFILL] Duplicate fixed for ${u.username}: ${existing} → ${newCode}`);
-        referralsData[key].code = newCode;
-        seenCodes.add(newCode);
-        backfilled++;
-      } else {
-        seenCodes.add(existing);
-      }
-    }
-  }
-
-  if (backfilled > 0) {
-    saveReferrals();
-    console.log(`[BACKFILL] Processed ${backfilled} referral codes (new + fixed duplicates).`);
-  }
+  const allUsers = await getAllUsers();
+  console.log(`Users: ${allUsers.length} | Orders: ${ordersArray.length} | Admins: ${adminAccounts.length}`);
 });
