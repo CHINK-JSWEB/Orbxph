@@ -300,8 +300,11 @@ if(mobileSidebarToggle) mobileSidebarToggle.addEventListener('click', openSideba
 if(sidebarOverlay)      sidebarOverlay.addEventListener('click', closeSidebar);
 
 // ── Load all data ─────────────────────────────────────────────
+let allOrdersIncludingArchivedCache = [];
+
 async function loadAllData(){
   await loadOrdersData();
+  await loadOrdersIncludingArchivedData();
   await loadWithdrawalsData();
   renderStats();
   renderIncome();
@@ -315,6 +318,13 @@ async function loadOrdersData(){
     if(r.status===401){ clearToken(); showAuth(); boot(); return; }
     allOrdersCache=await r.json();
   } catch(e){ allOrdersCache=[]; }
+}
+
+async function loadOrdersIncludingArchivedData(){
+  try{
+    const r=await fetch('/api/orders/all-including-archived',{headers:{Authorization:'Bearer '+getToken()}});
+    allOrdersIncludingArchivedCache=await r.json();
+  } catch(e){ allOrdersIncludingArchivedCache=[]; }
 }
 
 async function loadWithdrawalsData(){
@@ -333,7 +343,7 @@ async function renderStats(){
   const flagged     = orders.filter(o=>o.status==='flagged').length;
   const reviewed    = orders.filter(o=>o.status==='reviewed').length;
   const approved    = orders.filter(o=>o.status==='approved').length;
-  const totalIncome = orders.filter(o=>o.status==='approved').reduce((s,o)=>s+Number(o.price||0),0);
+  const totalIncome = allOrdersIncludingArchivedCache.filter(o=>o.status==='approved').reduce((s,o)=>s+Number(o.price||0),0);
   const wdPending   = allWithdrawalsCache.filter(w=>w.status==='pending').length;
   const badge=document.getElementById('pendingBadge');
   if(badge){ badge.textContent=pending; badge.classList.toggle('show',pending>0); }
@@ -393,7 +403,7 @@ function filterOrdersByDate(orders,filter){
   });
 }
 function renderIncome(){
-  const orders   = filterOrdersByDate(allOrdersCache,incomeFilter);
+  const orders   = filterOrdersByDate(allOrdersIncludingArchivedCache,incomeFilter);
   const approved = orders.filter(o=>o.status==='approved');
   const total    = approved.reduce((s,o)=>s+Number(o.price||0),0);
   const gcash    = approved.filter(o=>o.method&&o.method.toLowerCase().includes('gcash')).reduce((s,o)=>s+Number(o.price||0),0);

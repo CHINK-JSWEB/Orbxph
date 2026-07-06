@@ -555,6 +555,14 @@ app.get('/api/orders', requireAdmin, async (req, res) => {
   res.json(orders);
 });
 
+// ADMIN: All orders including archived (para sa income totals)
+app.get('/api/orders/all-including-archived', requireAdmin, async (req, res) => {
+  const live = await getAllOrders();
+  const archivedR = await pool.query('SELECT * FROM archived_orders ORDER BY created_at DESC');
+  const archived = archivedR.rows.map(mapOrderRow).map(o => ({ ...o, _archived: true }));
+  res.json([...live, ...archived]);
+});
+
 // ADMIN: Update order status
 app.patch('/api/orders/:id', requireAdmin, async (req, res) => {
   const order = await findOrderById(req.params.id);
@@ -656,7 +664,6 @@ app.delete('/api/orders/:id', requireAdmin, async (req, res) => {
   if (order.screenshot) {
     await deleteScreenshotFromSupabase(order.screenshot);
   }
-  await pool.query('DELETE FROM daily_logs WHERE order_id = $1', [order.id]);
 
   await pool.query(
     `INSERT INTO archived_orders
@@ -678,7 +685,6 @@ app.delete('/api/orders/bulk/:status', requireAdmin, async (req, res) => {
 
   for (const o of toDelete) {
     if (o.screenshot) await deleteScreenshotFromSupabase(o.screenshot);
-    await pool.query('DELETE FROM daily_logs WHERE order_id = $1', [o.id]);
     await pool.query(
       `INSERT INTO archived_orders
        (id, username, tier, price, method, screenshot, status, feedback, approved_at, bonus_claimed, created_at, deleted_by_admin_at)
