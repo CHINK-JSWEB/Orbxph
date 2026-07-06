@@ -77,7 +77,9 @@ function icon(name, cls=''){
 // ── Token helpers ─────────────────────────────────────────────
 function getToken(){ return localStorage.getItem('orbx_admin_token'); }
 function setToken(t){ localStorage.setItem('orbx_admin_token', t); }
-function clearToken(){ localStorage.removeItem('orbx_admin_token'); }
+function clearToken(){ localStorage.removeItem('orbx_admin_token'); localStorage.removeItem('orbx_admin_username'); }
+function setStoredUsername(u){ localStorage.setItem('orbx_admin_username', u); }
+function getStoredUsername(){ return localStorage.getItem('orbx_admin_username') || ''; }
 
 // ── Auth elements ─────────────────────────────────────────────
 const authWrap    = document.getElementById('adminAuthWrap');
@@ -92,7 +94,11 @@ async function boot(){
   const token = getToken();
   if(token){
     const res = await fetch('/api/orders',{headers:{Authorization:'Bearer '+token}});
-    if(res.ok){ showDashboard(); return; }
+    if(res.ok){
+      currentAdminUser = getStoredUsername();
+      showDashboard();
+      return;
+    }
     clearToken();
   }
   try{
@@ -121,7 +127,7 @@ setupForm.addEventListener('submit', async e => {
     if(!r.ok){ errEl.textContent=d.error||'May problema.'; errEl.style.display='block'; return; }
     const lr=await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
     const ld=await lr.json();
-    if(lr.ok){ setToken(ld.token); currentAdminUser=ld.username; showDashboard(); }
+    if(lr.ok){ setToken(ld.token); setStoredUsername(ld.username); currentAdminUser=ld.username; showDashboard(); }
   } catch(e){ errEl.textContent='Hindi makonekta sa server.'; errEl.style.display='block'; }
 });
 
@@ -136,7 +142,7 @@ loginForm.addEventListener('submit', async e => {
     const r=await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
     const d=await r.json();
     if(!r.ok){ errEl.textContent=d.error||'Hindi ma-login.'; errEl.style.display='block'; return; }
-    setToken(d.token); currentAdminUser=d.username; showDashboard();
+    setToken(d.token); setStoredUsername(d.username); currentAdminUser=d.username; showDashboard();
   } catch(e){ errEl.textContent='Hindi makonekta sa server.'; errEl.style.display='block'; }
 });
 
