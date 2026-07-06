@@ -433,6 +433,19 @@ app.patch('/api/admin/users/:username/block', requireAdmin, async (req, res) => 
   res.json({ success: true, blocked: newBlocked });
 });
 
+// ADMIN: Reset a user's password
+app.patch('/api/admin/users/:username/reset-password', requireAdmin, async (req, res) => {
+  const { newPassword } = req.body || {};
+  if (!newPassword || newPassword.length < 6)
+    return res.status(400).json({ error: 'Minimum 6 characters ang bagong password.' });
+  const user = await findUserByUsername(req.params.username);
+  if (!user) return res.status(404).json({ error: 'User not found.' });
+  const newHash = await bcrypt.hash(newPassword, 10);
+  await pool.query('UPDATE users SET password_hash = $1 WHERE username = $2', [newHash, user.username]);
+  console.log(`[ADMIN RESET PASSWORD] ${user.username} password reset by admin.`);
+  res.json({ success: true });
+});
+
 // ── Customer auth ─────────────────────────────────────────────
 app.post('/api/signup', async (req, res) => {
   const { username, phone: rawPhone, password, referralCode } = req.body || {};

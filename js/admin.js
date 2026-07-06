@@ -841,16 +841,19 @@ async function loadUsers(){
     const users=await r.json();
     if(!users.length){ list.innerHTML='<p class="admin-empty">Wala pang nakarehistrong user.</p>'; return; }
     list.innerHTML=`
-      <div class="data-table">
-        <div class="data-table-head"><span>Username</span><span>Phone</span><span>Joined</span><span>Status</span><span>Action</span></div>
+      <div class="data-table" style="overflow-x:auto;">
+        <div class="data-table-head" style="grid-template-columns:1.5fr 1.5fr 1.2fr 1fr 1fr 1.2fr;"><span>Username</span><span>Phone</span><span>Joined</span><span>Status</span><span>Block</span><span>Password</span></div>
         ${users.map(u=>`
-          <div class="data-table-row">
+          <div class="data-table-row" style="grid-template-columns:1.5fr 1.5fr 1.2fr 1fr 1fr 1.2fr;">
             <span class="dt-username">${u.username}</span>
             <span class="dt-phone">${u.phone}</span>
             <span class="dt-date">${new Date(u.createdAt).toLocaleDateString('en-PH')}</span>
             <span class="dt-status ${u.blocked?'blocked':'active'}">${u.blocked?'Blocked':'Active'}</span>
             <span><button class="block-btn ${u.blocked?'unblock':''}" data-username="${u.username}" data-blocked="${u.blocked}">
               ${icon('block','icon-xs')} ${u.blocked?'Unblock':'Block'}
+            </button></span>
+            <span><button class="reset-pass-btn" data-username="${u.username}">
+              Reset Pass
             </button></span>
           </div>`).join('')}
       </div>`;
@@ -859,6 +862,23 @@ async function loadUsers(){
         if(!confirm((btn.dataset.blocked==='true'?'I-unblock':'I-block')+' si '+btn.dataset.username+'?')) return;
         await fetch('/api/admin/users/'+encodeURIComponent(btn.dataset.username)+'/block',{method:'PATCH',headers:{Authorization:'Bearer '+getToken()}});
         loadUsers(); renderStats();
+      });
+    });
+    list.querySelectorAll('.reset-pass-btn').forEach(btn=>{
+      btn.addEventListener('click',async()=>{
+        const newPass = prompt('Ilagay ang bagong password para kay '+btn.dataset.username+' (min. 6 characters):');
+        if(!newPass) return;
+        if(newPass.length<6){ alert('Minimum 6 characters ang password.'); return; }
+        try{
+          const r = await fetch('/api/admin/users/'+encodeURIComponent(btn.dataset.username)+'/reset-password',{
+            method:'PATCH',
+            headers:{'Content-Type':'application/json',Authorization:'Bearer '+getToken()},
+            body:JSON.stringify({newPassword:newPass})
+          });
+          const d = await r.json();
+          if(!r.ok){ alert(d.error||'May error sa pag-reset.'); return; }
+          alert('Successfully na-reset ang password ni '+btn.dataset.username+'. Sabihin mo sa kanya ang bagong password: '+newPass);
+        } catch(e){ alert('Hindi makonekta sa server.'); }
       });
     });
   } catch(e){ list.innerHTML='<p class="admin-empty">May error sa pag-load ng users.</p>'; }
