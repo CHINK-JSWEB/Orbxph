@@ -164,7 +164,11 @@ async function getReferralInvites(username) {
      FROM referral_invites WHERE LOWER(referrer_username) = LOWER($1) ORDER BY credited_at`,
     [username]
   );
-  return r.rows;
+  return r.rows.map(row => ({
+    ...row,
+    price: parseFloat(row.price),
+    reward: parseFloat(row.reward),
+  }));
 }
 
 async function getOrCreateReferral(username) {
