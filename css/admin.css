@@ -328,6 +328,38 @@
 .block-btn.unblock:hover{ background: rgba(124,255,178,0.1); border-color: rgba(124,255,178,0.4); }
 #tab-admins .data-table-head, #tab-admins .data-table-row { grid-template-columns: 1fr 1fr; }
 
+/* ── Users table — responsive layout ── */
+#tab-users .data-table { overflow-x: auto; }
+#tab-users .data-table-head,
+#tab-users .data-table-row {
+  grid-template-columns: 1.6fr 1.4fr 1fr 0.9fr 0.9fr 1fr;
+  gap: 10px;
+  min-width: 620px;
+}
+#tab-users .dt-phone { white-space: nowrap; }
+#tab-users .block-btn,
+#tab-users .reset-pass-btn {
+  white-space: nowrap;
+  font-size: 10.5px;
+  padding: 5px 10px;
+}
+#tab-users .reset-pass-btn {
+  background: rgba(255,200,87,0.08);
+  border: 1px solid rgba(255,200,87,0.3);
+  color: var(--gold);
+  border-radius: 7px;
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  transition: background .2s;
+}
+#tab-users .reset-pass-btn:hover { background: rgba(255,200,87,0.18); }
+
+@media (max-width: 768px) {
+  #tab-users .data-table-head,
+  #tab-users .data-table-row { min-width: 560px; }
+}
+
 /* ── Add admin card ── */
 .add-admin-card { margin-top: 24px; background: var(--card); border: 1px solid var(--border); border-radius: 18px; padding: 24px; }
 .add-admin-title { font-size: 14px; font-weight: 700; color: var(--text); margin: 0 0 18px; }

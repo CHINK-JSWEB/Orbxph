@@ -338,12 +338,12 @@ async function loadWithdrawalsData(){
 async function renderStats(){
   let users=[];
   try{ const r=await fetch('/api/admin/users',{headers:{Authorization:'Bearer '+getToken()}}); users=await r.json(); } catch(e){}
-  const orders      = allOrdersCache;
+  const orders      = allOrdersIncludingArchivedCache;
   const pending     = orders.filter(o=>o.status==='pending').length;
   const flagged     = orders.filter(o=>o.status==='flagged').length;
   const reviewed    = orders.filter(o=>o.status==='reviewed').length;
   const approved    = orders.filter(o=>o.status==='approved').length;
-  const totalIncome = allOrdersIncludingArchivedCache.filter(o=>o.status==='approved').reduce((s,o)=>s+Number(o.price||0),0);
+  const totalIncome = orders.filter(o=>o.status==='approved').reduce((s,o)=>s+Number(o.price||0),0);
   const wdPending   = allWithdrawalsCache.filter(w=>w.status==='pending').length;
   const badge=document.getElementById('pendingBadge');
   if(badge){ badge.textContent=pending; badge.classList.toggle('show',pending>0); }
