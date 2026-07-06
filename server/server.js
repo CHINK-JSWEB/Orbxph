@@ -484,24 +484,48 @@ app.post('/api/login', async (req, res) => {
 });
 
 // ── Orders ────────────────────────────────────────────────────
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, UPLOADS_DIR),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname) || '.jpg';
-    cb(null, `order-${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`);
-  },
-});
+const supabase = require('./supabaseClient');
+const SCREENSHOTS_BUCKET = 'order-screenshots';
+
+const storage = multer.memoryStorage();
 const upload = multer({
   storage,
   limits: { fileSize: 8 * 1024 * 1024 },
   fileFilter: (req, file, cb) => cb(null, file.mimetype.startsWith('image/'))
 });
 
+async function uploadScreenshotToSupabase(file) {
+  const ext = path.extname(file.originalname) || '.jpg';
+  const filename = `order-${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`;
+  const { error } = await supabase.storage
+    .from(SCREENSHOTS_BUCKET)
+    .upload(filename, file.buffer, { contentType: file.mimetype });
+  if (error) throw error;
+  const { data } = supabase.storage.from(SCREENSHOTS_BUCKET).getPublicUrl(filename);
+  return data.publicUrl;
+}
+
+async function deleteScreenshotFromSupabase(screenshotUrl) {
+  if (!screenshotUrl) return;
+  try {
+    const filename = screenshotUrl.split('/').pop();
+    await supabase.storage.from(SCREENSHOTS_BUCKET).remove([filename]);
+  } catch (err) {
+    console.error('[SCREENSHOT DELETE ERROR]', err);
+  }
+}
+
 app.post('/api/orders', upload.single('screenshot'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Walang na-attach na screenshot.' });
   const { username, tier, price, method } = req.body || {};
   const id = Date.now().toString(36);
-  const screenshot = '/uploads/' + req.file.filename;
+  let screenshot;
+  try {
+    screenshot = await uploadScreenshotToSupabase(req.file);
+  } catch (err) {
+    console.error('[SCREENSHOT UPLOAD ERROR]', err);
+    return res.status(500).json({ error: 'Hindi na-upload ang screenshot. Subukan ulit.' });
+  }
   await pool.query(
     `INSERT INTO orders (id, username, tier, price, method, screenshot, status)
      VALUES ($1, $2, $3, $4, $5, $6, 'pending')`,
@@ -626,7 +650,7 @@ app.delete('/api/orders/:id', requireAdmin, async (req, res) => {
   if (!order) return res.status(404).json({ error: 'Order not found.' });
 
   if (order.screenshot) {
-    fs.unlink(path.join(UPLOADS_DIR, path.basename(order.screenshot)), () => {});
+    await deleteScreenshotFromSupabase(order.screenshot);
   }
   await pool.query('DELETE FROM daily_logs WHERE order_id = $1', [order.id]);
 
@@ -649,7 +673,7 @@ app.delete('/api/orders/bulk/:status', requireAdmin, async (req, res) => {
   const toDelete = r.rows.map(mapOrderRow);
 
   for (const o of toDelete) {
-    if (o.screenshot) fs.unlink(path.join(UPLOADS_DIR, path.basename(o.screenshot)), () => {});
+    if (o.screenshot) await deleteScreenshotFromSupabase(o.screenshot);
     await pool.query('DELETE FROM daily_logs WHERE order_id = $1', [o.id]);
     await pool.query(
       `INSERT INTO archived_orders
@@ -669,7 +693,7 @@ app.delete('/api/orders/:id/screenshot', requireAdmin, async (req, res) => {
   const order = await findOrderById(req.params.id);
   if (!order) return res.status(404).json({ error: 'Order not found.' });
   if (order.screenshot) {
-    fs.unlink(path.join(UPLOADS_DIR, path.basename(order.screenshot)), () => {});
+    await deleteScreenshotFromSupabase(order.screenshot);
     await pool.query('UPDATE orders SET screenshot = NULL WHERE id = $1', [order.id]);
   }
   const updatedOrder = await findOrderById(order.id);
