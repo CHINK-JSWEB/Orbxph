@@ -362,24 +362,45 @@
 
 .product-card {
   position: relative;
-  flex: 0 0 clamp(230px,54vw,280px);
+  flex: 0 0 clamp(270px,64vw,330px);
   scroll-snap-align: start;
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 20px;
+  border-radius: 22px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   cursor: pointer;
   opacity: 0;
-  transform: translateY(24px);
-  animation: pcEnter .6s cubic-bezier(.2,.7,.3,1) forwards;
+  transform: translateY(30px) scale(.94);
+  animation: pcEnter .7s cubic-bezier(.2,.7,.3,1) forwards;
   animation-delay: var(--pc-delay, 0s);
-  transition: transform .3s cubic-bezier(.2,.7,.3,1), box-shadow .3s ease, border-color .3s ease;
+  transition: transform .4s cubic-bezier(.2,.7,.3,1), box-shadow .4s ease, border-color .3s ease;
+  will-change: transform;
 }
 @keyframes pcEnter {
-  from { opacity:0; transform: translateY(24px) scale(.96); }
-  to   { opacity:1; transform: translateY(0) scale(1); }
+  0%   { opacity:0; transform: translateY(30px) scale(.9) rotateX(8deg); }
+  60%  { opacity:1; }
+  100% { opacity:1; transform: translateY(0) scale(1) rotateX(0deg); }
+}
+
+/* Idle ambient glow pulse, even without hover */
+.product-card {
+  animation: pcEnter .7s cubic-bezier(.2,.7,.3,1) forwards, pcIdlePulse 4.5s ease-in-out infinite;
+  animation-delay: var(--pc-delay, 0s), calc(var(--pc-delay, 0s) + .7s);
+}
+@keyframes pcIdlePulse {
+  0%,100% { box-shadow: 0 10px 30px -14px rgba(77,166,255,0.18); }
+  50%      { box-shadow: 0 16px 44px -14px rgba(155,107,255,0.28); }
+}
+
+/* Stronger hover lift + tilt */
+.product-card:hover {
+  transform: translateY(-12px) scale(1.035) rotateX(2deg);
+  box-shadow: 0 32px 64px -20px rgba(77,166,255,0.5), 0 0 0 1px rgba(155,107,255,0.2);
+}
+.product-card:active {
+  transform: translateY(-6px) scale(1.01);
 }
 
 /* Animated gradient border glow on hover */
@@ -418,19 +439,34 @@
 }
 .product-card .pc-image {
   width: 100%; aspect-ratio: 4/3; object-fit: contain; display: block;
-  transition: transform .5s cubic-bezier(.2,.7,.3,1);
+  transition: transform .6s cubic-bezier(.2,.7,.3,1);
   position: relative; z-index: 1;
 }
-.product-card:hover .pc-image { transform: scale(1.06); }
+.product-card:hover .pc-image { transform: scale(1.1) rotate(-1deg); }
+
+/* Continuous ambient shimmer sweep (not just hover) */
 .product-card .pc-image-wrap::after {
   content:'';
-  position:absolute; top:0; left:-130%; width:55%; height:100%;
-  background: linear-gradient(115deg, transparent, rgba(255,255,255,0.22), transparent);
+  position:absolute; top:0; left:-130%; width:45%; height:100%;
+  background: linear-gradient(115deg, transparent, rgba(255,255,255,0.28), transparent);
   transform: skewX(-18deg);
-  transition: left .7s ease;
+  animation: pcAutoShimmer 3.5s ease-in-out infinite;
+  animation-delay: var(--pc-delay, 0s);
   z-index: 2; pointer-events:none;
 }
-.product-card:hover .pc-image-wrap::after { left: 140%; }
+@keyframes pcAutoShimmer {
+  0%   { left: -130%; }
+  35%  { left: 140%; }
+  100% { left: 140%; }
+}
+
+/* Extra bright sweep on hover */
+.product-card:hover .pc-image-wrap::before {
+  content:'';
+  position:absolute; inset:0;
+  background: radial-gradient(circle at 50% 40%, rgba(155,107,255,0.15), transparent 70%);
+  z-index: 1; pointer-events:none;
+}
 
 /* Popular badge */
 .pc-badge {
@@ -449,18 +485,23 @@
   50%      { transform: scale(1.06); }
 }
 
-.product-card .pc-body { padding: 18px 18px 20px; display: flex; flex-direction: column; gap: 9px; flex: 1; position: relative; z-index: 1; }
-.pc-tier  { font-family: 'Orbitron', sans-serif; font-weight: 700; font-size: 13px; letter-spacing: 1px; text-transform: uppercase; color: var(--blue); }
+.product-card .pc-body { padding: 22px 22px 24px; display: flex; flex-direction: column; gap: 11px; flex: 1; position: relative; z-index: 1; }
+.pc-tier  { font-family: 'Orbitron', sans-serif; font-weight: 800; font-size: 15px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--blue); }
 .pc-price {
-  font-size: clamp(22px,4.5vw,27px); font-weight: 800; color: var(--text);
-  background: linear-gradient(90deg, var(--text), var(--blue));
-  background-size: 200% auto;
+  font-size: clamp(26px,5.5vw,34px); font-weight: 800; color: var(--text);
+  background: linear-gradient(90deg, var(--text), var(--blue), var(--violet), var(--text));
+  background-size: 300% auto;
   -webkit-background-clip: text; background-clip: text;
-  transition: background-position .4s ease;
+  transition: background-position .6s ease;
+  animation: pcPriceShine 5s linear infinite;
+}
+@keyframes pcPriceShine {
+  0%   { background-position: 0% center; }
+  100% { background-position: 300% center; }
 }
 .product-card:hover .pc-price { background-position: 100% center; }
 
-.pc-desc  { font-size: 12.5px; color: var(--muted); line-height: 1.55; flex: 1; }
+.pc-desc  { font-size: 13.5px; color: var(--muted); line-height: 1.6; flex: 1; }
 .pc-info-row { display:flex; gap:8px; margin-top:2px; }
 .pc-info-chip {
   flex:1; display:flex; flex-direction:column; gap:2px; padding:8px 10px;
@@ -474,16 +515,21 @@
 .pc-info-val--comm  { color:#c8b0ff; }
 
 .pc-order-btn {
-  margin-top: 6px; width: 100%; padding: 12px; border: none; border-radius: 11px;
-  background: linear-gradient(90deg, var(--blue), var(--violet));
-  background-size: 200% auto;
-  color: #fff; font-weight: 700; font-size: 13.5px; cursor: pointer;
-  transition: background-position .4s ease, transform .15s, box-shadow .15s;
-  box-shadow: 0 8px 20px -8px rgba(77,166,255,0.45);
+  margin-top: 8px; width: 100%; padding: 15px; border: none; border-radius: 13px;
+  background: linear-gradient(90deg, var(--blue), var(--violet), var(--blue));
+  background-size: 250% auto;
+  color: #fff; font-weight: 800; font-size: 14.5px; letter-spacing: 0.3px; cursor: pointer;
+  transition: background-position .5s ease, transform .18s, box-shadow .18s;
+  box-shadow: 0 10px 26px -8px rgba(77,166,255,0.5);
   position: relative; overflow: hidden;
+  animation: pcBtnShine 4s linear infinite;
 }
-.pc-order-btn:hover { transform: translateY(-1px); box-shadow: 0 12px 26px -8px rgba(155,107,255,0.5); background-position: 100% center; }
-.pc-order-btn:active { transform: translateY(0) scale(.98); }
+@keyframes pcBtnShine {
+  0%   { background-position: 0% center; }
+  100% { background-position: 250% center; }
+}
+.pc-order-btn:hover { transform: translateY(-2px); box-shadow: 0 16px 34px -8px rgba(155,107,255,0.6); }
+.pc-order-btn:active { transform: translateY(0) scale(.97); }
 
 @media (prefers-reduced-motion: reduce) {
   .product-card, .product-card::before, .pc-image, .pc-badge { animation: none !important; }
@@ -700,9 +746,9 @@
 }
 
 /* ── Footer ── */
-.dash-footer { position: relative; z-index: 2; text-align: center; padding: 22px 16px 30px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--border); }
-.badge-row { display: flex; justify-content: center; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
-.badge-slot { width: 54px; height: 54px; border-radius: 10px; display: flex; align-items: center; justify-content: center; overflow: hidden; background: #ffffff; padding: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+.dash-footer { position: relative; z-index: 2; text-align: center; padding: 20px 16px 26px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--border); }
+.badge-row { display: flex; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.badge-slot { width: 38px; height: 38px; border-radius: 8px; display: flex; align-items: center; justify-content: center; overflow: hidden; background: #ffffff; padding: 4px; box-shadow: 0 2px 6px rgba(0,0,0,0.12); }
 .badge-slot img { width: 100%; height: 100%; object-fit: contain; }
 .badge-slot.empty { border: 1px dashed var(--border); background: rgba(255,255,255,0.02); box-shadow: none; }
 

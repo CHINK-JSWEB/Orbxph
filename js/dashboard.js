@@ -143,7 +143,7 @@ function formatDayCountdown(ms){
 }
 function timeAgoLocal(iso){
   const d = Math.floor((Date.now()-new Date(iso).getTime())/1000);
-  if(d<60) return 'kanina lang';
+  if(d<60) return 'Just Now';
   if(d<3600) return Math.floor(d/60)+'m ago';
   if(d<86400) return Math.floor(d/3600)+'h ago';
   return Math.floor(d/86400)+'d ago';
@@ -224,7 +224,7 @@ async function renderWithdrawBody(){
     html += `
       <div style="display:flex;align-items:flex-start;gap:8px;font-size:11.5px;color:var(--muted);background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:10px;padding:10px 13px;line-height:1.6;margin-bottom:14px;">
         <svg style="width:13px;height:13px;flex-shrink:0;color:var(--blue);margin-top:2px;" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.2"/><path d="M8 5v3.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="8" cy="11" r="0.7" fill="currentColor"/></svg>
-        <span>Karaniwang <strong style="color:var(--text)">1–2 hours</strong> ang processing. Pagkatapos ng successful withdrawal, magsisimula ang bagong <strong style="color:var(--text)">7-day</strong> referral cycle.</span>
+        <span>Processing typically takes <strong style="color:var(--text)">1–2 hours</strong>. After a successful withdrawal, a new <strong style="color:var(--text)">7-day</strong> referral cycle begins.</span>
       </div>
       <div class="wd-form-group">
         <label class="wd-label">Amount to Withdraw</label>
@@ -245,11 +245,11 @@ async function renderWithdrawBody(){
       </div>
       <div class="wd-form-group">
         <label class="wd-label">Account Name</label>
-        <input type="text" id="wdAccountName" class="wd-input" placeholder="Buong pangalan sa account">
+        <input type="text" id="wdAccountName" class="wd-input" placeholder="Full name on account">
       </div>
       <div class="wd-form-group">
         <label class="wd-label">Notes <span style="color:var(--muted);font-weight:400;">(optional)</span></label>
-        <textarea id="wdNotes" class="wd-input" rows="2" placeholder="Karagdagang detalye..."></textarea>
+        <textarea id="wdNotes" class="wd-input" rows="2" placeholder="Additional details..."></textarea>
       </div>
       <div class="form-error" id="wdFormError"></div>
       <button class="wallet-withdraw-btn" id="wdSubmitBtn" style="margin-top:4px;">Submit Withdrawal Request</button>`;
@@ -303,8 +303,8 @@ async function renderWithdrawBody(){
       try{
         const res  = await fetch('/api/withdraw',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:currentUser,amount,accountNumber,accountName,method,notes})});
         const data = await res.json();
-        if(!res.ok){ errEl.textContent=data.error||'May problema sa pag-submit.'; errEl.style.display='block'; submitBtn.disabled=false; submitBtn.textContent='Submit Withdrawal Request'; return; }
-        document.getElementById('withdrawBody').innerHTML=`<div class="order-success"><div class="order-success-badge">Submitted</div><h3>Withdrawal Requested</h3><p>Hihintayin na lang namin ang verification. Karaniwang 1–2 hours ang processing. Salamat, ${currentUser}.</p></div>`;
+        if(!res.ok){ errEl.textContent=data.error||'There was a problem submitting your request.'; errEl.style.display='block'; submitBtn.disabled=false; submitBtn.textContent='Submit Withdrawal Request'; return; }
+        document.getElementById('withdrawBody').innerHTML=`<div class="order-success"><div class="order-success-badge">Submitted</div><h3>Withdrawal Requested</h3><p>Your request is now pending verification. Processing typically takes 1–2 hours. Thank you, ${currentUser}.</p></div>`;
         loadWallet();
       } catch(err){ errEl.textContent='Hindi makonekta sa server.'; errEl.style.display='block'; submitBtn.disabled=false; submitBtn.textContent='Submit Withdrawal Request'; }
     });
