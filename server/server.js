@@ -6,12 +6,30 @@ const crypto = require('crypto');
 const multer = require('multer');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
+const cors = require('cors');
 
 const app = express();
 
 app.use(helmet({
   contentSecurityPolicy: false, // naka-off muna, dahil static HTML/JS/CSS files ang gamit natin
   crossOriginResourcePolicy: { policy: 'cross-origin' }, // para gumana ang images/screenshots
+}));
+
+// ── CORS — tanggapin lang requests mula sa sariling domain ─────
+const ALLOWED_ORIGINS = [
+  'https://orbxph.onrender.com',
+  'http://localhost:3000', // para sa local testing
+];
+app.use(cors({
+  origin: function (origin, callback) {
+    // Payagan ang mga requests na walang origin (halimbawa curl, Postman, mobile apps)
+    if (!origin) return callback(null, true);
+    if (ALLOWED_ORIGINS.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Hindi pinapayagan ng CORS policy ang origin na ito.'));
+  },
+  credentials: true,
 }));
 
 // ── Rate Limiters ─────────────────────────────────────────────
