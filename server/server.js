@@ -4,8 +4,37 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const multer = require('multer');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
+
+// ── Rate Limiters ─────────────────────────────────────────────
+// Mahigpit na limit para sa login/auth endpoints (laban sa brute-force)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // max 10 attempts per window
+  message: { error: 'Sobra na ang subok mo. Subukan ulit pagkalipas ng 15 minuto.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Mas maluwag na limit para sa general API endpoints
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 300, // max 300 requests per 15 min per IP
+  message: { error: 'Sobra na ang requests mo. Subukan ulit mamaya.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Mahigpit na limit para sa order/withdrawal submissions (laban sa spam)
+const submitLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 20, // max 20 submissions per hour
+  message: { error: 'Sobra na ang mga submission mo. Subukan ulit mamaya.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 const PORT = process.env.PORT || 3000;
 const USERS_FILE        = path.join(__dirname, 'users.json');
 const ORDERS_FILE       = path.join(__dirname, 'orders.json');
@@ -24,6 +53,7 @@ if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..')));
 app.use('/uploads', express.static(UPLOADS_DIR));
+app.use('/api/', generalLimiter);
 
 // ── Utility ───────────────────────────────────────────────────
 function normalizePhone(raw) {
@@ -375,7 +405,7 @@ app.get('/api/admin/exists', async (req, res) => {
   res.json({ exists: count > 0 });
 });
 
-app.post('/api/admin/setup', async (req, res) => {
+app.post('/api/admin/setup', authLimiter, async (req, res) => {
   const { username, password } = req.body || {};
   if (!username || !password)
     return res.status(400).json({ error: 'Lahat ng fields kailangan punan.' });
@@ -389,7 +419,7 @@ app.post('/api/admin/setup', async (req, res) => {
   res.json({ success: true });
 });
 
-app.post('/api/admin/login', async (req, res) => {
+app.post('/api/admin/login', authLimiter, async (req, res) => {
   const { username, password } = req.body || {};
   const count = await getAdminCount();
   if (!count)
@@ -447,7 +477,7 @@ app.patch('/api/admin/users/:username/reset-password', requireAdmin, async (req,
 });
 
 // ── Customer auth ─────────────────────────────────────────────
-app.post('/api/signup', async (req, res) => {
+app.post('/api/signup', authLimiter, async (req, res) => {
   const { username, phone: rawPhone, password, referralCode } = req.body || {};
   if (!username || !rawPhone || !password)
     return res.status(400).json({ error: 'Lahat ng fields kailangan punan.' });
@@ -486,7 +516,7 @@ app.post('/api/signup', async (req, res) => {
   res.json({ success: true, referralBonus: referredBy ? REFERRAL_SIGNUP_BONUS : 0 });
 });
 
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', authLimiter, async (req, res) => {
   const { phone: rawPhone, password } = req.body || {};
   if (!rawPhone || !password)
     return res.status(400).json({ error: 'Kailangan ng number at password.' });
@@ -532,7 +562,7 @@ async function deleteScreenshotFromSupabase(screenshotUrl) {
   }
 }
 
-app.post('/api/orders', upload.single('screenshot'), async (req, res) => {
+app.post('/api/orders', submitLimiter, upload.single('screenshot'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Walang na-attach na screenshot.' });
   const { username, tier, price, method } = req.body || {};
   const id = Date.now().toString(36);
@@ -913,7 +943,7 @@ app.get('/api/withdraw/eligibility/:username', async (req, res) => {
 });
 
 // CLIENT: submit withdrawal request
-app.post('/api/withdraw', async (req, res) => {
+app.post('/api/withdraw', submitLimiter, async (req, res) => {
   const { username, amount, accountNumber, accountName, method, notes } = req.body || {};
 
   if (!username || !accountNumber || !accountName)
@@ -1046,7 +1076,7 @@ app.patch('/api/admin/withdrawals/:id', requireAdmin, async (req, res) => {
 });
 
 // ── Customer: change password ─────────────────────────────────
-app.post('/api/change-password', async (req, res) => {
+app.post('/api/change-password', authLimiter, async (req, res) => {
   const { phone: rawPhone, currentPassword, newPassword } = req.body || {};
   if(!rawPhone || !currentPassword || !newPassword)
     return res.status(400).json({ error: 'Lahat ng fields kailangan punan.' });
@@ -1063,7 +1093,7 @@ app.post('/api/change-password', async (req, res) => {
 });
 
 // ── Admin: change password ────────────────────────────────────
-app.post('/api/admin/change-password', requireAdmin, async (req, res) => {
+app.post('/api/admin/change-password', authLimiter, requireAdmin, async (req, res) => {
   const { currentPassword, newPassword } = req.body || {};
   const adminUsername = req.adminUser.username;
   const admin = await findAdminByUsername(adminUsername);
