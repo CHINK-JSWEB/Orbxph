@@ -522,6 +522,9 @@ app.post('/api/signup', authLimiter, async (req, res) => {
   res.json({ success: true, referralBonus: referredBy ? REFERRAL_SIGNUP_BONUS : 0 });
 });
 
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+
 app.post('/api/login', authLimiter, async (req, res) => {
   const { phone: rawPhone, password } = req.body || {};
   if (!rawPhone || !password)
@@ -531,8 +534,39 @@ app.post('/api/login', authLimiter, async (req, res) => {
   if (!user) return res.status(401).json({ error: 'Walang account na may ganitong number.' });
   if (user.blocked)
     return res.status(403).json({ error: 'Ang account mo ay na-block. Makipag-ugnayan sa Customer Service.' });
+
+  // Check kung naka-lock ang account dahil sa sobrang failed attempts
+  if (user.locked_until && new Date(user.locked_until) > new Date()) {
+    const minutesLeft = Math.ceil((new Date(user.locked_until) - new Date()) / 60000);
+    return res.status(403).json({
+      error: `Naka-lock muna ang account mo dahil sa sobrang failed attempts. Subukan ulit pagkalipas ng ${minutesLeft} minuto.`
+    });
+  }
+
   const match = await bcrypt.compare(password, user.password_hash);
-  if (!match) return res.status(401).json({ error: 'Maling password.' });
+  if (!match) {
+    const newAttempts = (user.failed_login_attempts || 0) + 1;
+    if (newAttempts >= MAX_LOGIN_ATTEMPTS) {
+      const lockUntil = new Date(Date.now() + LOCKOUT_DURATION_MS);
+      await pool.query(
+        'UPDATE users SET failed_login_attempts = $1, locked_until = $2 WHERE username = $3',
+        [newAttempts, lockUntil, user.username]
+      );
+      return res.status(403).json({
+        error: `Naka-lock ang account mo dahil sa sobrang maling password. Subukan ulit pagkalipas ng 15 minuto.`
+      });
+    } else {
+      await pool.query('UPDATE users SET failed_login_attempts = $1 WHERE username = $2', [newAttempts, user.username]);
+      const attemptsLeft = MAX_LOGIN_ATTEMPTS - newAttempts;
+      return res.status(401).json({ error: `Maling password. ${attemptsLeft} attempt(s) na lang bago ma-lock ang account.` });
+    }
+  }
+
+  // Successful login — i-reset ang failed attempts
+  if (user.failed_login_attempts > 0 || user.locked_until) {
+    await pool.query('UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE username = $1', [user.username]);
+  }
+
   res.json({ success: true, username: user.username, phone: user.phone });
 });
 
