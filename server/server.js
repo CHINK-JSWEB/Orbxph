@@ -5,8 +5,14 @@ const path = require('path');
 const crypto = require('crypto');
 const multer = require('multer');
 const rateLimit = require('express-rate-limit');
+const helmet = require('helmet');
 
 const app = express();
+
+app.use(helmet({
+  contentSecurityPolicy: false, // naka-off muna, dahil static HTML/JS/CSS files ang gamit natin
+  crossOriginResourcePolicy: { policy: 'cross-origin' }, // para gumana ang images/screenshots
+}));
 
 // ── Rate Limiters ─────────────────────────────────────────────
 // Mahigpit na limit para sa login/auth endpoints (laban sa brute-force)
