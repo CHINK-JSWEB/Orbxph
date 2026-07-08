@@ -152,6 +152,117 @@ function peso(n){
   return '&#8369;'+Number(n||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
 }
 
+// ── Notifications ─────────────────────────────────────────────
+const NOTIF_ICONS = {
+  order_approved: `<svg viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="9" stroke="currentColor" stroke-width="1.5"/><path d="M6.5 10.5l2.5 2.5 4.5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  order_flagged: `<svg viewBox="0 0 20 20" fill="none"><path d="M10 3L17.5 16H2.5L10 3Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 9v3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`,
+  referral_commission: `<svg viewBox="0 0 20 20" fill="none"><circle cx="8" cy="6" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M2 17c0-3.314 2.686-5 6-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`,
+  daily_reward: `<svg viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="3.5" stroke="currentColor" stroke-width="1.5"/><path d="M10 2v2M10 16v2M2 10h2M16 10h2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`,
+  signup_bonus: `<svg viewBox="0 0 20 20" fill="none"><rect x="2" y="8" width="16" height="10" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M2 11h16M10 8v10" stroke="currentColor" stroke-width="1.5"/></svg>`,
+  new_referral: `<svg viewBox="0 0 20 20" fill="none"><circle cx="8" cy="6" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M2 17c0-3.314 2.686-5 6-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`,
+  withdrawal_paid: `<svg viewBox="0 0 20 20" fill="none"><rect x="2" y="4" width="16" height="12" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M6 10h8M11 8l2 2-2 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  withdrawal_approved: `<svg viewBox="0 0 20 20" fill="none"><rect x="2" y="4" width="16" height="12" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M6 10h8M11 8l2 2-2 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  withdrawal_rejected: `<svg viewBox="0 0 20 20" fill="none"><path d="M10 3L17.5 16H2.5L10 3Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>`,
+  password_changed: `<svg viewBox="0 0 20 20" fill="none"><rect x="4" y="9" width="12" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M7 9V6a3 3 0 016 0v3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`,
+  account_blocked: `<svg viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="9" stroke="currentColor" stroke-width="1.5"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07" stroke="currentColor" stroke-width="1.5"/></svg>`,
+  account_unblocked: `<svg viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="9" stroke="currentColor" stroke-width="1.5"/><path d="M6.5 10.5l2.5 2.5 4.5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  announcement: `<svg viewBox="0 0 20 20" fill="none"><path d="M15 17h5l-1.4-1.4c-.4-.4-.6-.9-.6-1.4V11a6 6 0 00-4-5.7V5a2 2 0 10-4 0v.3C7.7 6.2 6 8.4 6 11v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+};
+
+const notifBellBtn  = document.getElementById('notifBellBtn');
+const notifDropdown = document.getElementById('notifDropdown');
+const notifBadge    = document.getElementById('notifBadge');
+const notifList     = document.getElementById('notifList');
+
+function notifTimeAgo(iso){
+  const d = Math.floor((Date.now()-new Date(iso).getTime())/1000);
+  if(d<60) return 'just now';
+  if(d<3600) return Math.floor(d/60)+'m ago';
+  if(d<86400) return Math.floor(d/3600)+'h ago';
+  return Math.floor(d/86400)+'d ago';
+}
+
+async function loadNotifications(){
+  try{
+    const res  = await fetch('/api/notifications/'+encodeURIComponent(currentUser));
+    const data = await res.json();
+    const { notifications, unreadCount } = data;
+
+    if(unreadCount > 0){
+      notifBadge.textContent = unreadCount > 99 ? '99+' : unreadCount;
+      notifBadge.classList.remove('hidden');
+    } else {
+      notifBadge.classList.add('hidden');
+    }
+
+    if(!notifications.length){
+      notifList.innerHTML = '<p class="notif-empty">No notifications yet.</p>';
+      return;
+    }
+
+    notifList.innerHTML = notifications.map(n => `
+      <div class="notif-item ${n.read ? '' : 'unread'}" data-id="${n.id}">
+        <div class="notif-item-icon">${NOTIF_ICONS[n.type] || NOTIF_ICONS.announcement}</div>
+        <div class="notif-item-body">
+          <div class="notif-item-title">${n.title}</div>
+          <div class="notif-item-msg">${n.message}</div>
+          <div class="notif-item-time">${notifTimeAgo(n.createdAt)}</div>
+        </div>
+        ${!n.read ? '<div class="notif-item-dot"></div>' : ''}
+      </div>
+    `).join('');
+
+  } catch(e){
+    notifList.innerHTML = '<p class="notif-empty">Unable to load notifications.</p>';
+  }
+}
+
+async function markNotificationRead(notificationId){
+  try{
+    await fetch('/api/notifications/'+encodeURIComponent(currentUser)+'/read', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(notificationId ? { notificationId } : {})
+    });
+  } catch(e){}
+}
+
+if(notifBellBtn){
+  notifBellBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    notifDropdown.classList.toggle('show');
+    if(notifDropdown.classList.contains('show')) loadNotifications();
+  });
+}
+document.addEventListener('click', (e) => {
+  if(notifDropdown && !notifDropdown.contains(e.target) && e.target !== notifBellBtn){
+    notifDropdown.classList.remove('show');
+  }
+});
+if(notifList){
+  notifList.addEventListener('click', async (e) => {
+    const item = e.target.closest('.notif-item');
+    if(!item) return;
+    if(item.classList.contains('unread')){
+      await markNotificationRead(item.dataset.id);
+      item.classList.remove('unread');
+      const dot = item.querySelector('.notif-item-dot');
+      if(dot) dot.remove();
+      loadNotifications();
+    }
+  });
+}
+const markAllReadBtn = document.getElementById('markAllReadBtn');
+if(markAllReadBtn){
+  markAllReadBtn.addEventListener('click', async () => {
+    await markNotificationRead(null);
+    loadNotifications();
+  });
+}
+
+loadNotifications();
+setInterval(loadNotifications, 20000);
+
 // ── Wallet ────────────────────────────────────────────────────
 async function loadWallet(){
   try{
