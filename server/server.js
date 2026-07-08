@@ -387,12 +387,44 @@ async function processDailyRewards() {
         'UPDATE daily_logs SET last_credited_at = NOW(), total_credited = $1 WHERE order_id = $2',
         [newTotal, log.order_id]
       );
+
+      await createNotification(
+        log.username,
+        'daily_reward',
+        'Daily Reward Credited',
+        `You received your daily reward of ₱${Number(log.daily_reward).toLocaleString()} from your ${log.tier} package.`
+      );
+
       console.log(`[DAILY REWARD] ${log.username} +₱${log.daily_reward} (${log.tier})`);
     }
   }
 }
 setInterval(processDailyRewards, 60 * 1000);
 
+
+// ── Notifications (PostgreSQL) ────────────────────────────────
+async function createNotification(username, type, title, message) {
+  await pool.query(
+    'INSERT INTO notifications (username, type, title, message) VALUES ($1, $2, $3, $4)',
+    [username, type, title, message]
+  );
+}
+
+async function getNotifications(username, limit = 50) {
+  const r = await pool.query(
+    'SELECT * FROM notifications WHERE LOWER(username) = LOWER($1) ORDER BY created_at DESC LIMIT $2',
+    [username, limit]
+  );
+  return r.rows;
+}
+
+async function getUnreadCount(username) {
+  const r = await pool.query(
+    'SELECT COUNT(*) FROM notifications WHERE LOWER(username) = LOWER($1) AND read = false',
+    [username]
+  );
+  return parseInt(r.rows[0].count, 10);
+}
 
 // ── Admin (PostgreSQL) ────────────────────────────────────────
 const adminTokens = new Map();
@@ -484,6 +516,23 @@ app.patch('/api/admin/users/:username/block', requireAdmin, async (req, res) => 
   if (!user) return res.status(404).json({ error: 'User not found.' });
   const newBlocked = !user.blocked;
   await pool.query('UPDATE users SET blocked = $1 WHERE username = $2', [newBlocked, user.username]);
+
+  if (newBlocked) {
+    await createNotification(
+      user.username,
+      'account_blocked',
+      'Account Blocked',
+      `Your account has been blocked. Please contact Customer Service for assistance.`
+    );
+  } else {
+    await createNotification(
+      user.username,
+      'account_unblocked',
+      'Account Unblocked',
+      `Your account has been unblocked. You may now log in and use your account normally.`
+    );
+  }
+
   res.json({ success: true, blocked: newBlocked });
 });
 
@@ -533,9 +582,23 @@ app.post('/api/signup', authLimiter, async (req, res) => {
   await getOrCreateReferral(username);
 
   if (referredBy) {
-    await creditWallet(username, REFERRAL_SIGNUP_BONUS, `Signup bonus - referred by ${referredBy}`);
-    console.log(`[SIGNUP BONUS] ${username} +₱${REFERRAL_SIGNUP_BONUS} (referred by ${referredBy})`);
-  }
+  await creditWallet(username, REFERRAL_SIGNUP_BONUS, `Signup bonus - referred by ${referredBy}`);
+  console.log(`[SIGNUP BONUS] ${username} +₱${REFERRAL_SIGNUP_BONUS} (referred by ${referredBy})`);
+
+  await createNotification(
+    username,
+    'signup_bonus',
+    'Welcome Bonus Received',
+    `You received a ₱${REFERRAL_SIGNUP_BONUS} welcome bonus for signing up with a referral code!`
+  );
+
+  await createNotification(
+    referredBy,
+    'new_referral',
+    'New Referral Joined',
+    `${username} just joined using your referral code!`
+  );
+}
 
   res.json({ success: true, referralBonus: referredBy ? REFERRAL_SIGNUP_BONUS : 0 });
 });
@@ -673,7 +736,7 @@ app.patch('/api/orders/:id', requireAdmin, async (req, res) => {
   if (status) {
     if (status === 'approved' && order.status === 'flagged')
       return res.status(403).json({
-        error: 'Hindi pwedeng i-approve ang isang flagged na order. Permanente ang flag.'
+        error: 'Cannot approve a flagged order. The flag is permanent.'
       });
 
     const wasApproved = order.status === 'approved';
@@ -682,6 +745,13 @@ app.patch('/api/orders/:id', requireAdmin, async (req, res) => {
 
     if (status === 'approved' && !wasApproved) {
       newApprovedAt = new Date().toISOString();
+
+      await createNotification(
+        order.username,
+        'order_approved',
+        'Order Approved',
+        `Your order for ${order.tier} (₱${order.price.toLocaleString()}) has been approved!`
+      );
 
       // Daily Reward tracking
       const dailyReward = parseFloat((order.price * DAILY_REWARD_RATE).toFixed(2));
@@ -731,6 +801,12 @@ app.patch('/api/orders/:id', requireAdmin, async (req, res) => {
                 inviterUser.username, reward,
                 `Referral reward L${level} - ${order.username} (${order.tier})`
               );
+              await createNotification(
+                inviterUser.username,
+                'referral_commission',
+                'Referral Commission Received',
+                `You earned ₱${reward.toLocaleString()} from ${order.username}'s ${order.tier} order (Level ${level}).`
+              );
             }
           }
         }
@@ -752,6 +828,14 @@ app.patch('/api/orders/:id', requireAdmin, async (req, res) => {
 
   if (feedback !== undefined) {
     await pool.query('UPDATE orders SET feedback = $1 WHERE id = $2', [feedback, order.id]);
+    if (status === 'flagged') {
+      await createNotification(
+        order.username,
+        'order_flagged',
+        'Order Needs Attention',
+        `Your order for ${order.tier} was flagged: ${feedback}`
+      );
+    }
   }
 
   const updatedOrder = await findOrderById(order.id);
@@ -937,19 +1021,27 @@ app.post('/api/task-rewards/:username/claim/:taskId', async (req, res) => {
   const username = req.params.username;
   const task = await findTaskById(req.params.taskId);
   if (!task || !task.active)
-    return res.status(404).json({ error: 'Task not found o hindi na active.' });
+    return res.status(404).json({ error: 'Task not found or no longer active.' });
 
   const already = await pool.query(
     'SELECT id FROM task_logs WHERE LOWER(username) = LOWER($1) AND task_id = $2',
     [username, task.id]
   );
-  if (already.rows.length > 0) return res.status(409).json({ error: 'Na-claim mo na ang task na ito.' });
+  if (already.rows.length > 0) return res.status(409).json({ error: 'You already claimed this task.' });
 
   await pool.query(
     'INSERT INTO task_logs (username, task_id, reward) VALUES ($1, $2, $3)',
     [username, task.id, task.reward]
   );
   await creditWallet(username, task.reward, `Task reward - ${task.title}`);
+
+  await createNotification(
+    username,
+    'task_reward',
+    'Task Reward Claimed',
+    `You claimed ₱${Number(task.reward).toLocaleString()} for completing "${task.title}".`
+  );
+
   res.json({ success: true });
 });
 
@@ -991,6 +1083,58 @@ app.delete('/api/admin/tasks/:id', requireAdmin, async (req, res) => {
   if (!task) return res.status(404).json({ error: 'Task not found.' });
   await pool.query('DELETE FROM tasks WHERE id = $1', [task.id]);
   res.json({ success: true });
+});
+
+// ── Notifications API ──────────────────────────────────────────
+app.get('/api/notifications/:username', async (req, res) => {
+  const notifications = await getNotifications(req.params.username);
+  const unreadCount = await getUnreadCount(req.params.username);
+  res.json({
+    notifications: notifications.map(n => ({
+      id: n.id,
+      type: n.type,
+      title: n.title,
+      message: n.message,
+      read: n.read,
+      createdAt: n.created_at,
+    })),
+    unreadCount,
+  });
+});
+
+app.patch('/api/notifications/:username/read', async (req, res) => {
+  const { notificationId } = req.body || {};
+  if (notificationId) {
+    await pool.query(
+      'UPDATE notifications SET read = true WHERE id = $1 AND LOWER(username) = LOWER($2)',
+      [notificationId, req.params.username]
+    );
+  } else {
+    await pool.query(
+      'UPDATE notifications SET read = true WHERE LOWER(username) = LOWER($1)',
+      [req.params.username]
+    );
+  }
+  res.json({ success: true });
+});
+// ── Admin Broadcast ────────────────────────────────────────────
+app.post('/api/admin/broadcast', requireAdmin, async (req, res) => {
+  const { title, message, usernames } = req.body || {};
+  if (!title || !message)
+    return res.status(400).json({ error: 'Title and message are required.' });
+
+  let targets = usernames;
+  if (!targets || !targets.length) {
+    const allUsers = await getAllUsers();
+    targets = allUsers.map(u => u.username);
+  }
+
+  for (const uname of targets) {
+    await createNotification(uname, 'announcement', title, message);
+  }
+
+  console.log(`[BROADCAST] Sent to ${targets.length} user(s): "${title}"`);
+  res.json({ success: true, sentTo: targets.length });
 });
 
 // ── Withdrawal API ────────────────────────────────────────────
@@ -1074,47 +1218,74 @@ app.patch('/api/admin/withdrawals/:id', requireAdmin, async (req, res) => {
 
     // ── Mark as PAID (must already be approved) ───────────────
     if (status === 'paid') {
-      if (w.status !== 'approved') {
-        return res.status(400).json({
-          error: 'I-approve muna ang withdrawal bago i-mark as Paid.'
-        });
-      }
-      await pool.query(
-        'UPDATE withdrawals SET status = $1, processed_at = NOW(), feedback = $2 WHERE id = $3',
-        ['paid', feedback !== undefined ? feedback : w.feedback, w.id]
-      );
-      const updated = await findWithdrawalById(w.id);
-      console.log(`[WITHDRAW PAID] ${w.username} -> ₱${w.amount} marked as paid.`);
-      return res.json({ success: true, withdrawal: updated });
-    }
+  if (w.status !== 'approved') {
+    return res.status(400).json({
+      error: 'Please approve the withdrawal first before marking it as Paid.'
+    });
+  }
+  await pool.query(
+    'UPDATE withdrawals SET status = $1, processed_at = NOW(), feedback = $2 WHERE id = $3',
+    ['paid', feedback !== undefined ? feedback : w.feedback, w.id]
+  );
+
+  await createNotification(
+    w.username,
+    'withdrawal_paid',
+    'Withdrawal Paid',
+    `Your withdrawal of ₱${Number(w.amount).toLocaleString()} has been sent to your ${w.method} account.`
+  );
+
+  const updated = await findWithdrawalById(w.id);
+  console.log(`[WITHDRAW PAID] ${w.username} -> ₱${w.amount} marked as paid.`);
+  return res.json({ success: true, withdrawal: updated });
+}
 // ── APPROVE: deduct balance + start new referral cycle ────
     if (status === 'approved' && w.status !== 'approved') {
-      const wallet  = await getWallet(w.username);
-      const balance = parseFloat((wallet.income - wallet.withdrawn).toFixed(2));
-      if (w.amount > balance) {
-        return res.status(400).json({
-          error: 'Hindi sapat ang balance ng user para sa withdrawal na ito.'
-        });
-      }
-      const newWithdrawn = parseFloat((wallet.withdrawn + w.amount).toFixed(2));
-      await pool.query(
-        'UPDATE wallets SET withdrawn = $1, withdraw_cycle_start = NOW() WHERE LOWER(username) = LOWER($2)',
-        [newWithdrawn, w.username]
-      );
-      await pool.query('UPDATE withdrawals SET processed_at = NOW() WHERE id = $1', [w.id]);
-      console.log(`[WITHDRAW APPROVED] ${w.username} -> ₱${w.amount}. Bagong 7-day referral cycle nagsimula.`);
-    }
+  const wallet  = await getWallet(w.username);
+  const balance = parseFloat((wallet.income - wallet.withdrawn).toFixed(2));
+  if (w.amount > balance) {
+    return res.status(400).json({
+      error: 'The user does not have sufficient balance for this withdrawal.'
+    });
+  }
+  const newWithdrawn = parseFloat((wallet.withdrawn + w.amount).toFixed(2));
+  await pool.query(
+    'UPDATE wallets SET withdrawn = $1, withdraw_cycle_start = NOW() WHERE LOWER(username) = LOWER($2)',
+    [newWithdrawn, w.username]
+  );
+  await pool.query('UPDATE withdrawals SET processed_at = NOW() WHERE id = $1', [w.id]);
+
+  await createNotification(
+    w.username,
+    'withdrawal_approved',
+    'Withdrawal Approved',
+    `Your withdrawal request of ₱${Number(w.amount).toLocaleString()} has been approved and is now being processed.`
+  );
+
+  console.log(`[WITHDRAW APPROVED] ${w.username} -> ₱${w.amount}. New 7-day referral cycle started.`);
+}
 
     // ── REJECT / FLAG: ibalik ang pera kung dati nang approved ─
-    if ((status === 'rejected' || status === 'flagged') && w.status === 'approved') {
-      const wallet = await getWallet(w.username);
-      const newWithdrawn = parseFloat((wallet.withdrawn - w.amount).toFixed(2));
-      await pool.query(
-        'UPDATE wallets SET withdrawn = $1 WHERE LOWER(username) = LOWER($2)',
-        [newWithdrawn, w.username]
-      );
-      console.log(`[WITHDRAW REVERTED] ${w.username} +₱${w.amount} ibinalik sa balance.`);
-    }
+    if (status === 'rejected' || status === 'flagged') {
+  if (w.status === 'approved') {
+    const wallet = await getWallet(w.username);
+    const newWithdrawn = parseFloat((wallet.withdrawn - w.amount).toFixed(2));
+    await pool.query(
+      'UPDATE wallets SET withdrawn = $1 WHERE LOWER(username) = LOWER($2)',
+      [newWithdrawn, w.username]
+    );
+    console.log(`[WITHDRAW REVERTED] ${w.username} +₱${w.amount} refunded to balance.`);
+  }
+
+  await createNotification(
+    w.username,
+    'withdrawal_rejected',
+    status === 'flagged' ? 'Withdrawal Flagged' : 'Withdrawal Rejected',
+    feedback
+      ? `Your withdrawal of ₱${Number(w.amount).toLocaleString()} was ${status}: ${feedback}`
+      : `Your withdrawal of ₱${Number(w.amount).toLocaleString()} was ${status}. Please contact support for details.`
+  );
+}
 
   }
 
@@ -1137,16 +1308,24 @@ app.patch('/api/admin/withdrawals/:id', requireAdmin, async (req, res) => {
 app.post('/api/change-password', authLimiter, async (req, res) => {
   const { phone: rawPhone, currentPassword, newPassword } = req.body || {};
   if(!rawPhone || !currentPassword || !newPassword)
-    return res.status(400).json({ error: 'Lahat ng fields kailangan punan.' });
+    return res.status(400).json({ error: 'All fields are required.' });
   const phone = normalizePhone(rawPhone);
   const user  = await findUserByPhone(phone);
   if(!user) return res.status(404).json({ error: 'User not found.' });
   const match = await bcrypt.compare(currentPassword, user.password_hash);
-  if(!match) return res.status(401).json({ error: 'Mali ang current password.' });
+  if(!match) return res.status(401).json({ error: 'Current password is incorrect.' });
   if(newPassword.length < 6)
-    return res.status(400).json({ error: 'Minimum 6 characters ang new password.' });
+    return res.status(400).json({ error: 'New password must be at least 6 characters.' });
   const newHash = await bcrypt.hash(newPassword, 10);
   await pool.query('UPDATE users SET password_hash = $1 WHERE username = $2', [newHash, user.username]);
+
+  await createNotification(
+    user.username,
+    'password_changed',
+    'Password Changed',
+    `Your password was successfully changed. If this wasn't you, please contact Customer Service immediately.`
+  );
+
   res.json({ success: true });
 });
 
