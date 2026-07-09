@@ -402,6 +402,69 @@ async function processDailyRewards() {
 setInterval(processDailyRewards, 60 * 1000);
 
 
+// ── Survey/Trivia System (PostgreSQL + Open Trivia DB) ─────────
+const SURVEY_REWARD = 0.50;
+const SURVEY_QUESTIONS_PER_DAY = 10;
+
+function decodeHtmlEntities(str) {
+  return str
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&eacute;/g, 'é')
+    .replace(/&ouml;/g, 'ö')
+    .replace(/&uuml;/g, 'ü');
+}
+
+function shuffleArray(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+async function fetchAndCacheTodaysQuestions() {
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const existing = await pool.query(
+    'SELECT * FROM survey_questions WHERE question_date = $1 ORDER BY id',
+    [today]
+  );
+  if (existing.rows.length >= SURVEY_QUESTIONS_PER_DAY) {
+    return existing.rows;
+  }
+
+  try {
+    const res = await fetch(`https://opentdb.com/api.php?amount=${SURVEY_QUESTIONS_PER_DAY}&type=multiple`);
+    const data = await res.json();
+    if (data.response_code !== 0 || !data.results) return existing.rows;
+
+    for (const q of data.results) {
+      const question = decodeHtmlEntities(q.question);
+      const correctAnswer = decodeHtmlEntities(q.correct_answer);
+      const options = shuffleArray([
+        correctAnswer,
+        ...q.incorrect_answers.map(decodeHtmlEntities)
+      ]);
+      await pool.query(
+        'INSERT INTO survey_questions (question_date, question, correct_answer, options) VALUES ($1, $2, $3, $4)',
+        [today, question, correctAnswer, JSON.stringify(options)]
+      );
+    }
+    const updated = await pool.query(
+      'SELECT * FROM survey_questions WHERE question_date = $1 ORDER BY id',
+      [today]
+    );
+    return updated.rows;
+  } catch (err) {
+    console.error('[SURVEY FETCH ERROR]', err);
+    return existing.rows;
+  }
+}
+
 // ── Notifications (PostgreSQL) ────────────────────────────────
 async function createNotification(username, type, title, message) {
   await pool.query(
@@ -1117,6 +1180,74 @@ app.patch('/api/notifications/:username/read', async (req, res) => {
   }
   res.json({ success: true });
 });
+// ── Survey API ──────────────────────────────────────────────────
+app.get('/api/survey/:username', async (req, res) => {
+  const username = req.params.username;
+  const questions = await fetchAndCacheTodaysQuestions();
+
+  const answeredRows = await pool.query(
+    'SELECT question_id, selected_answer, is_correct FROM survey_responses WHERE LOWER(username) = LOWER($1) AND question_id = ANY($2)',
+    [username, questions.map(q => q.id)]
+  );
+  const answeredMap = {};
+  answeredRows.rows.forEach(r => { answeredMap[r.question_id] = r; });
+
+  const result = questions.map(q => ({
+    id: q.id,
+    question: q.question,
+    options: q.options,
+    answered: !!answeredMap[q.id],
+    selectedAnswer: answeredMap[q.id]?.selected_answer || null,
+    isCorrect: answeredMap[q.id]?.is_correct ?? null,
+  }));
+
+  const correctCount = answeredRows.rows.filter(r => r.is_correct).length;
+  const totalEarned = parseFloat((correctCount * SURVEY_REWARD).toFixed(2));
+
+  res.json({
+    questions: result,
+    answeredCount: answeredRows.rows.length,
+    totalQuestions: questions.length,
+    correctCount,
+    totalEarned,
+  });
+});
+
+app.post('/api/survey/:username/answer', async (req, res) => {
+  const username = req.params.username;
+  const { questionId, selectedAnswer } = req.body || {};
+  if (!questionId || !selectedAnswer)
+    return res.status(400).json({ error: 'Question ID and answer are required.' });
+
+  const already = await pool.query(
+    'SELECT id FROM survey_responses WHERE LOWER(username) = LOWER($1) AND question_id = $2',
+    [username, questionId]
+  );
+  if (already.rows.length > 0)
+    return res.status(409).json({ error: 'You already answered this question.' });
+
+  const qRow = await pool.query('SELECT * FROM survey_questions WHERE id = $1', [questionId]);
+  if (!qRow.rows[0]) return res.status(404).json({ error: 'Question not found.' });
+
+  const isCorrect = qRow.rows[0].correct_answer === selectedAnswer;
+
+  await pool.query(
+    'INSERT INTO survey_responses (username, question_id, selected_answer, is_correct) VALUES ($1, $2, $3, $4)',
+    [username, questionId, selectedAnswer, isCorrect]
+  );
+
+  if (isCorrect) {
+    await creditWallet(username, SURVEY_REWARD, 'Survey question - correct answer');
+  }
+
+  res.json({
+    success: true,
+    isCorrect,
+    correctAnswer: qRow.rows[0].correct_answer,
+    reward: isCorrect ? SURVEY_REWARD : 0,
+  });
+});
+
 // ── Admin Broadcast ────────────────────────────────────────────
 app.post('/api/admin/broadcast', requireAdmin, async (req, res) => {
   const { title, message, usernames } = req.body || {};
