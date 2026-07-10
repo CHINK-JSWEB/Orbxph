@@ -9,6 +9,7 @@ const helmet = require('helmet');
 const cors = require('cors');
 
 const app = express();
+app.set('trust proxy', 1);
 
 app.use(helmet({
   contentSecurityPolicy: false, // naka-off muna, dahil static HTML/JS/CSS files ang gamit natin
