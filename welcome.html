@@ -1406,9 +1406,13 @@
             <div class="wallet-stat-icon wallet-stat-icon--daily">
               <svg viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="3.5" stroke="currentColor" stroke-width="1.5"/><path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.34 4.34l1.42 1.42M14.24 14.24l1.42 1.42M4.34 15.66l1.42-1.42M14.24 5.76l1.42-1.42" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
             </div>
+            <div class="wallet-stat wallet-stat--clickable" id="taskRewardStat">
+            <div class="wallet-stat-icon wallet-stat-icon--task">
+              <svg viewBox="0 0 20 20" fill="none"><rect x="3" y="2" width="14" height="16" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M7 7l2 2 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 13h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </div>
             <div class="wallet-stat-info">
-              <div class="wallet-stat-label">Daily Reward</div>
-              <div class="wallet-stat-value wallet-stat-value--daily" id="walletDailyReward">&#8369;0.00</div>
+              <div class="wallet-stat-label">Task Reward</div>
+              <div class="wallet-stat-value wallet-stat-value--task" id="walletTaskReward">&#8369;0.00</div>
             </div>
           </div>
           <div class="wallet-stat">
@@ -1921,6 +1925,77 @@
           <svg viewBox="0 0 16 16" fill="none" width="13" height="13" style="flex-shrink:0;margin-top:2px;"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.2"/><path d="M8 5v3.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="8" cy="11" r="0.7" fill="currentColor"/></svg>
           <span>The official admin account is <strong>ORBX-PH (Admin)</strong>. Please be cautious of accounts impersonating admin staff.</span>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TASK REWARDS HUB MODAL -->
+  <div class="modal-overlay" id="taskHubOverlay">
+    <div class="modal-box">
+      <div class="modal-head">
+        <span>Task Rewards</span>
+        <button class="modal-close" id="taskHubClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="task-hub-list">
+          <div class="task-hub-item task-hub-item--soon">
+            <div class="task-hub-icon">
+              <svg viewBox="0 0 20 20" fill="none" width="20" height="20"><rect x="4" y="2" width="12" height="16" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M9 15h2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </div>
+            <div class="task-hub-info">
+              <div class="task-hub-title">Install Games / Apps</div>
+              <div class="task-hub-desc">Install featured apps and earn ₱5.00 per install.</div>
+            </div>
+            <span class="task-hub-badge task-hub-badge--soon">SOON</span>
+          </div>
+          <div class="task-hub-item task-hub-item--soon">
+            <div class="task-hub-icon">
+              <svg viewBox="0 0 20 20" fill="none" width="20" height="20"><rect x="2" y="4" width="16" height="12" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M8 8l4 2-4 2V8z" fill="currentColor"/></svg>
+            </div>
+            <div class="task-hub-info">
+              <div class="task-hub-title">Watch Ads / Videos</div>
+              <div class="task-hub-desc">Watch short videos and earn rewards.</div>
+            </div>
+            <span class="task-hub-badge task-hub-badge--soon">SOON</span>
+          </div>
+          <div class="task-hub-item task-hub-item--available" id="surveyTaskItem">
+            <div class="task-hub-icon task-hub-icon--available">
+              <svg viewBox="0 0 20 20" fill="none" width="20" height="20"><path d="M6 3h8a1 1 0 011 1v12a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1z" stroke="currentColor" stroke-width="1.5"/><path d="M8 7h4M8 10h4M8 13h2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </div>
+            <div class="task-hub-info">
+              <div class="task-hub-title">Answer Survey</div>
+              <div class="task-hub-desc" id="surveyTaskDesc">10 new questions daily. Earn ₱0.50 per correct answer.</div>
+            </div>
+            <span class="task-hub-badge task-hub-badge--available">AVAILABLE</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SURVEY QUESTIONS MODAL -->
+  <div class="modal-overlay" id="surveyOverlay">
+    <div class="modal-box modal-box--wide">
+      <div class="modal-head">
+        <button class="pm-back" id="surveyBack" style="margin:0;padding:0;">&larr;</button>
+        <span>Daily Survey</span>
+        <button class="modal-close" id="surveyClose">&times;</button>
+      </div>
+      <div class="modal-body" id="surveyBody">
+        <p style="color:var(--muted);text-align:center;padding:24px 0;">Loading...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- DAILY REWARD BREAKDOWN MODAL -->
+  <div class="modal-overlay" id="dailyRewardOverlay">
+    <div class="modal-box modal-box--wide">
+      <div class="modal-head">
+        <span>Daily Reward Breakdown</span>
+        <button class="modal-close" id="dailyRewardClose">&times;</button>
+      </div>
+      <div class="modal-body" id="dailyRewardBody">
+        <p style="color:var(--muted);text-align:center;padding:24px 0;">Loading...</p>
       </div>
     </div>
   </div>
