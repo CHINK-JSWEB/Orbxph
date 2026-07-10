@@ -950,3 +950,63 @@ function bindQuestionCard(q){
     }
   });
 }
+const dailyRewardStat    = document.getElementById('dailyRewardStat');
+const dailyRewardOverlay = document.getElementById('dailyRewardOverlay');
+const dailyRewardClose   = document.getElementById('dailyRewardClose');
+const dailyRewardBody    = document.getElementById('dailyRewardBody');
+
+if(dailyRewardStat)    dailyRewardStat.addEventListener('click', openDailyRewardModal);
+if(dailyRewardClose)   dailyRewardClose.addEventListener('click', () => dailyRewardOverlay.classList.remove('show'));
+if(dailyRewardOverlay) dailyRewardOverlay.addEventListener('click', e => {
+  if(e.target === dailyRewardOverlay) dailyRewardOverlay.classList.remove('show');
+});
+
+async function openDailyRewardModal(){
+  dailyRewardOverlay.classList.add('show');
+  dailyRewardBody.innerHTML = `<p style="color:var(--muted);text-align:center;padding:24px 0;">Loading...</p>`;
+  try{
+    const res  = await fetch('/api/daily-rewards/'+encodeURIComponent(currentUser));
+    const logs = await res.json();
+    renderDailyRewardBody(logs);
+  } catch(e){
+    dailyRewardBody.innerHTML = `<p style="color:var(--muted);text-align:center;padding:24px 0;">Unable to connect to the server.</p>`;
+  }
+}
+
+function renderDailyRewardBody(logs){
+  if(!logs.length){
+    dailyRewardBody.innerHTML = `<p style="color:var(--muted);text-align:center;padding:24px 0;">You don't have any active packages earning daily rewards yet.</p>`;
+    return;
+  }
+
+  const totalDaily     = logs.reduce((s,l)=>s+(l.dailyReward||0),0);
+  const totalCredited  = logs.reduce((s,l)=>s+(l.totalCredited||0),0);
+
+  let html = `
+    <div class="survey-earned-banner" style="margin-bottom:16px;">
+      <span class="survey-earned-label">Total credited so far</span>
+      <span class="survey-earned-val">${peso(totalCredited)}</span>
+    </div>
+    <div class="wd-hint" style="margin-bottom:14px;">Combined daily rate from all active packages: <strong style="color:var(--text)">${peso(totalDaily)}/day</strong></div>
+  `;
+
+  logs
+    .slice()
+    .sort((a,b) => new Date(b.startedAt) - new Date(a.startedAt))
+    .forEach(log => {
+      const startedDate = new Date(log.startedAt).toLocaleDateString('en-PH', { year:'numeric', month:'short', day:'numeric' });
+      html += `
+        <div class="dr-item">
+          <div class="dr-item-left">
+            <div class="dr-item-tier">${escapeHtml(log.tier)}</div>
+            <div class="dr-item-date">Started ${startedDate}</div>
+          </div>
+          <div class="dr-item-right">
+            <div class="dr-item-amount">+${peso(log.dailyReward)}/day</div>
+            <div class="dr-item-rate">Total earned: ${peso(log.totalCredited)}</div>
+          </div>
+        </div>`;
+    });
+
+  dailyRewardBody.innerHTML = html;
+}
