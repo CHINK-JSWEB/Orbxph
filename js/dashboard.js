@@ -278,10 +278,18 @@ async function loadWallet(){
     const dailyEl = document.getElementById('walletDailyReward');
     if(dailyEl) dailyEl.innerHTML = peso(dailyTotal);
     const taskLogsRes = await fetch('/api/task-logs/'+encodeURIComponent(currentUser));
-    const taskLogs    = await taskLogsRes.json();
-    const taskTotal   = taskLogs.reduce((s,l)=>s+(l.reward||0),0);
-    const taskEl = document.getElementById('walletTaskReward');
-    if(taskEl) taskEl.innerHTML = peso(taskTotal);
+const taskLogs     = await taskLogsRes.json();
+const taskLogsTotal = taskLogs.reduce((s,l)=>s+(l.reward||0),0);
+
+let surveyTotal = 0;
+try{
+  const surveyRes  = await fetch('/api/survey/'+encodeURIComponent(currentUser));
+  const surveyData = await surveyRes.json();
+  surveyTotal = surveyData.totalEarned || 0;
+} catch(e){}
+
+const taskEl = document.getElementById('walletTaskReward');
+if(taskEl) taskEl.innerHTML = peso(taskLogsTotal + surveyTotal);
   } catch(e){}
 }
 loadWallet();
