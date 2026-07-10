@@ -707,3 +707,238 @@ shelf.addEventListener('click', e => {
 
 document.getElementById('orderClose').addEventListener('click', ()=>orderOverlay.classList.remove('show'));
 orderOverlay.addEventListener('click', e=>{ if(e.target===orderOverlay) orderOverlay.classList.remove('show'); });
+const SURVEY_REWARD_PHP = 0.50;
+
+const taskHubOverlay = document.getElementById('taskHubOverlay');
+const taskHubClose    = document.getElementById('taskHubClose');
+const taskRewardStat  = document.getElementById('taskRewardStat');
+const surveyTaskItem  = document.getElementById('surveyTaskItem');
+const surveyTaskDesc  = document.getElementById('surveyTaskDesc');
+
+const surveyOverlay = document.getElementById('surveyOverlay');
+const surveyClose   = document.getElementById('surveyClose');
+const surveyBack    = document.getElementById('surveyBack');
+const surveyBody    = document.getElementById('surveyBody');
+
+let surveyRunningState = { answeredCount: 0, totalQuestions: 0, correctCount: 0, totalEarned: 0 };
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str == null ? '' : String(str);
+  return div.innerHTML;
+}
+
+async function openTaskHub(){
+  if(!taskHubOverlay) return;
+  taskHubOverlay.classList.add('show');
+  await refreshSurveyTaskPreview();
+}
+function closeTaskHub(){
+  if(taskHubOverlay) taskHubOverlay.classList.remove('show');
+}
+
+if(taskRewardStat) taskRewardStat.addEventListener('click', openTaskHub);
+if(taskHubClose)   taskHubClose.addEventListener('click', closeTaskHub);
+if(taskHubOverlay) taskHubOverlay.addEventListener('click', e => {
+  if(e.target === taskHubOverlay) closeTaskHub();
+});
+
+async function refreshSurveyTaskPreview(){
+  if(!surveyTaskDesc) return;
+  try{
+    const res  = await fetch('/api/survey/'+encodeURIComponent(currentUser));
+    const data = await res.json();
+    const remaining = data.totalQuestions - data.answeredCount;
+    if(remaining <= 0){
+      surveyTaskDesc.textContent = `You've answered all questions for today. Come back tomorrow for a new set.`;
+    } else {
+      surveyTaskDesc.textContent = `${remaining} question${remaining === 1 ? '' : 's'} remaining. Earn ₱${SURVEY_REWARD_PHP.toFixed(2)} per correct answer.`;
+    }
+  } catch(e){
+    surveyTaskDesc.textContent = `10 new questions daily. Earn ₱${SURVEY_REWARD_PHP.toFixed(2)} per correct answer.`;
+  }
+}
+
+if(surveyTaskItem) surveyTaskItem.addEventListener('click', () => {
+  closeTaskHub();
+  surveyOverlay.classList.add('show');
+  loadSurvey();
+});
+if(surveyClose) surveyClose.addEventListener('click', () => surveyOverlay.classList.remove('show'));
+if(surveyBack)  surveyBack.addEventListener('click', () => {
+  surveyOverlay.classList.remove('show');
+  openTaskHub();
+});
+if(surveyOverlay) surveyOverlay.addEventListener('click', e => {
+  if(e.target === surveyOverlay) surveyOverlay.classList.remove('show');
+});
+
+async function loadSurvey(){
+  if(!surveyBody) return;
+  surveyBody.innerHTML = `<p style="color:var(--muted);text-align:center;padding:24px 0;">Loading...</p>`;
+  try{
+    const res  = await fetch('/api/survey/'+encodeURIComponent(currentUser));
+    const data = await res.json();
+    surveyRunningState = {
+      answeredCount:   data.answeredCount,
+      totalQuestions:  data.totalQuestions,
+      correctCount:    data.correctCount,
+      totalEarned:     data.totalEarned,
+    };
+    renderSurvey(data.questions);
+  } catch(e){
+    surveyBody.innerHTML = `<p style="color:var(--muted);text-align:center;padding:24px 0;">Unable to connect to the server.</p>`;
+  }
+}
+
+function renderProgressAndBanner(){
+  const { answeredCount, totalQuestions, correctCount, totalEarned } = surveyRunningState;
+  const pct = totalQuestions ? Math.round((answeredCount / totalQuestions) * 100) : 0;
+  const progLabel = document.querySelector('#surveyProgressCount');
+  const progFill  = document.querySelector('#surveyProgressFill');
+  const earnedVal = document.querySelector('#surveyEarnedVal');
+  const earnedLbl = document.querySelector('#surveyEarnedLabel');
+  if(progLabel) progLabel.textContent = `${answeredCount} / ${totalQuestions}`;
+  if(progFill)  progFill.style.width = pct + '%';
+  if(earnedVal) earnedVal.innerHTML = `&#8369;${Number(totalEarned).toFixed(2)}`;
+  if(earnedLbl) earnedLbl.textContent = `Earned today (${correctCount} correct)`;
+}
+
+function renderSurvey(questions){
+  const { answeredCount, totalQuestions } = surveyRunningState;
+
+  let html = `
+    <div class="survey-progress-bar-wrap">
+      <div class="survey-progress-label">
+        <span>Progress</span>
+        <span id="surveyProgressCount">0 / 0</span>
+      </div>
+      <div class="survey-progress-track">
+        <div class="survey-progress-fill" id="surveyProgressFill" style="width:0%"></div>
+      </div>
+    </div>
+    <div class="survey-earned-banner">
+      <span class="survey-earned-label" id="surveyEarnedLabel">Earned today</span>
+      <span class="survey-earned-val" id="surveyEarnedVal">&#8369;0.00</span>
+    </div>`;
+
+  if(!questions.length){
+    html += `<div class="survey-complete-msg"><strong>No questions available right now.</strong>Please check back later.</div>`;
+  } else if(answeredCount >= totalQuestions){
+    html += `<div class="survey-complete-msg"><strong>You're done for today! 🎉</strong>Come back tomorrow for a new set of questions.</div>`;
+    questions.forEach((q, idx) => { html += renderQuestionCard(q, idx); });
+  } else {
+    questions.forEach((q, idx) => { html += renderQuestionCard(q, idx); });
+  }
+
+  surveyBody.innerHTML = html;
+  renderProgressAndBanner();
+
+  questions.forEach(q => {
+    if(q.answered) return;
+    bindQuestionCard(q);
+  });
+}
+
+function renderQuestionCard(q, idx){
+  const optionsHtml = q.options.map(opt => {
+    let cls = 'survey-option';
+    if(q.answered){
+      cls += ' survey-option--locked';
+      if(opt === q.selectedAnswer && q.isCorrect)      cls += ' survey-option--correct';
+      else if(opt === q.selectedAnswer && !q.isCorrect) cls += ' survey-option--wrong';
+    }
+    return `
+      <div class="${cls}" data-value="${escapeHtml(opt)}">
+        <span class="survey-option-radio"></span>
+        <span>${escapeHtml(opt)}</span>
+      </div>`;
+  }).join('');
+
+  let resultTag = '';
+  if(q.answered){
+    resultTag = q.isCorrect
+      ? `<div class="survey-result-tag survey-result-tag--correct">✓ Correct! +₱${SURVEY_REWARD_PHP.toFixed(2)}</div>`
+      : `<div class="survey-result-tag survey-result-tag--wrong">✗ Incorrect</div>`;
+  }
+
+  return `
+    <div class="survey-question-card" id="sq-${q.id}">
+      <div class="survey-question-num">Question ${idx + 1}</div>
+      <div class="survey-question-text">${escapeHtml(q.question)}</div>
+      <div class="survey-options">${optionsHtml}</div>
+      ${q.answered ? resultTag : `<button class="survey-submit-btn" disabled>Submit Answer</button>`}
+    </div>`;
+}
+
+function bindQuestionCard(q){
+  const card = document.getElementById('sq-' + q.id);
+  if(!card) return;
+  const options   = card.querySelectorAll('.survey-option');
+  const submitBtn = card.querySelector('.survey-submit-btn');
+  let selected = null;
+
+  options.forEach(opt => {
+    opt.addEventListener('click', () => {
+      options.forEach(o => o.classList.remove('selected'));
+      opt.classList.add('selected');
+      selected = opt.dataset.value;
+      if(submitBtn) submitBtn.disabled = false;
+    });
+  });
+
+  if(!submitBtn) return;
+  submitBtn.addEventListener('click', async () => {
+    if(!selected || submitBtn.disabled) return;
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Submitting...';
+    try{
+      const res = await fetch(`/api/survey/${encodeURIComponent(currentUser)}/answer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ questionId: q.id, selectedAnswer: selected })
+      });
+      const result = await res.json();
+
+      if(!res.ok){
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Submit Answer';
+        alert(result.error || 'Something went wrong while submitting your answer.');
+        return;
+      }
+
+      options.forEach(opt => {
+        opt.classList.add('survey-option--locked');
+        if(opt.dataset.value === selected){
+          opt.classList.add(result.isCorrect ? 'survey-option--correct' : 'survey-option--wrong');
+        }
+      });
+      const resultTag = document.createElement('div');
+      resultTag.className = 'survey-result-tag ' + (result.isCorrect ? 'survey-result-tag--correct' : 'survey-result-tag--wrong');
+      resultTag.textContent = result.isCorrect
+        ? `✓ Correct! +₱${SURVEY_REWARD_PHP.toFixed(2)}`
+        : `✗ Incorrect`;
+      submitBtn.replaceWith(resultTag);
+
+      surveyRunningState.answeredCount += 1;
+      if(result.isCorrect){
+        surveyRunningState.correctCount += 1;
+        surveyRunningState.totalEarned = parseFloat((surveyRunningState.totalEarned + (result.reward || 0)).toFixed(2));
+      }
+      renderProgressAndBanner();
+      refreshSurveyTaskPreview();
+      if(typeof loadWallet === 'function') loadWallet();
+
+      if(surveyRunningState.answeredCount >= surveyRunningState.totalQuestions){
+        const doneMsg = document.createElement('div');
+        doneMsg.className = 'survey-complete-msg';
+        doneMsg.innerHTML = `<strong>You're done for today! 🎉</strong>Come back tomorrow for a new set of questions.`;
+        surveyBody.insertBefore(doneMsg, document.getElementById('sq-' + q.id));
+      }
+    } catch(err){
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Submit Answer';
+      alert('Unable to connect to the server.');
+    }
+  });
+}
