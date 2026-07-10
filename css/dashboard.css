@@ -1284,3 +1284,29 @@
 .level-tag--1 { color:#7CFFB2; background:rgba(124,255,178,0.12); }
 .level-tag--2 { color:var(--blue); background:rgba(77,166,255,0.12); }
 .level-tag--3 { color:#c8b0ff; background:rgba(155,107,255,0.12); }
+.lb-my-card {
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  background:linear-gradient(135deg, rgba(77,166,255,0.12), rgba(155,107,255,0.08));
+  border:1px solid rgba(77,166,255,0.3); border-radius:14px; padding:14px 16px; margin-bottom:16px;
+}
+.lb-my-card-left { display:flex; flex-direction:column; gap:4px; }
+.lb-my-card-label { font-size:10px; font-weight:800; letter-spacing:1px; text-transform:uppercase; color:var(--muted); }
+.lb-my-card-pos { font-family:'Orbitron',sans-serif; font-weight:800; font-size:18px; color:var(--blue); }
+.lb-my-card-right { text-align:right; display:flex; flex-direction:column; align-items:flex-end; gap:6px; }
+.lb-my-card-earned { font-family:'Orbitron',sans-serif; font-weight:800; font-size:15px; color:#7CFFB2; }
+
+.lb-list { display:flex; flex-direction:column; gap:8px; }
+.lb-item { display:flex; align-items:center; gap:12px; padding:11px 14px; border-radius:13px; border:1px solid var(--border); background:rgba(0,0,0,0.15); transition:border-color .2s; }
+.lb-item--you { border-color:rgba(77,166,255,0.5); background:rgba(77,166,255,0.08); }
+.lb-position { width:32px; text-align:center; font-family:'Orbitron',sans-serif; font-weight:800; font-size:13px; color:var(--muted); flex-shrink:0; }
+.lb-position--top1 { font-size:19px; }
+.lb-position--top2 { font-size:17px; }
+.lb-position--top3 { font-size:17px; }
+.lb-user { flex:1; min-width:0; display:flex; flex-direction:column; gap:4px; }
+.lb-username { font-size:13px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.lb-username--you::after { content:' (You)'; color:var(--blue); font-weight:600; font-size:11px; }
+.lb-meta { display:flex; align-items:center; gap:7px; }
+.lb-stats { text-align:right; flex-shrink:0; display:flex; flex-direction:column; gap:3px; }
+.lb-invites { font-size:10.5px; color:var(--muted); }
+.lb-earned { font-family:'Orbitron',sans-serif; font-weight:800; font-size:13px; color:#7CFFB2; }
+.lb-empty { text-align:center; padding:32px 16px; color:var(--muted); font-size:13px; }

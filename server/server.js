@@ -973,6 +973,39 @@ app.post('/api/wallet/:username/credit', requireAdmin, async (req, res) => {
   res.json({ success: true, wallet: w });
 });
 // ── Referral API ──────────────────────────────────────────────
+app.get('/api/leaderboard', async (req, res) => {
+  const r = await pool.query(`
+    SELECT referrer_username AS username,
+           COUNT(*) FILTER (WHERE level = 1) AS l1_count,
+           COALESCE(SUM(reward), 0) AS total_earned
+    FROM referral_invites
+    GROUP BY referrer_username
+    ORDER BY l1_count DESC, total_earned DESC
+  `);
+
+  const ranked = r.rows.map((row, idx) => {
+    const l1Count = parseInt(row.l1_count, 10);
+    const rankInfo = RANKS.find(rk => l1Count >= rk.minInvites) || RANKS[RANKS.length - 1];
+    return {
+      position: idx + 1,
+      username: row.username,
+      l1Count,
+      totalEarned: parseFloat(row.total_earned),
+      rankName: rankInfo.name,
+    };
+  });
+
+  const username = req.query.username;
+  const myEntry = username
+    ? ranked.find(e => e.username.toLowerCase() === String(username).toLowerCase()) || null
+    : null;
+
+  res.json({
+    top: ranked.slice(0, 20),
+    myEntry,
+  });
+});
+
 app.get('/api/referral/:username', async (req, res) => {
   const entry = await getOrCreateReferral(req.params.username);
   res.json(entry);

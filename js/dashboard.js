@@ -1010,3 +1010,86 @@ function renderDailyRewardBody(logs){
 
   dailyRewardBody.innerHTML = html;
 }
+const navLeaderboardLink = document.getElementById('navLeaderboardLink');
+const leaderboardOverlay = document.getElementById('leaderboardOverlay');
+const leaderboardClose   = document.getElementById('leaderboardClose');
+const leaderboardBody    = document.getElementById('leaderboardBody');
+
+if(navLeaderboardLink) navLeaderboardLink.addEventListener('click', e => {
+  e.preventDefault();
+  document.getElementById('navDrawer').classList.remove('open');
+  document.getElementById('navOverlay').classList.remove('show');
+  setTimeout(openLeaderboard, 150);
+});
+if(leaderboardClose)   leaderboardClose.addEventListener('click', () => leaderboardOverlay.classList.remove('show'));
+if(leaderboardOverlay) leaderboardOverlay.addEventListener('click', e => {
+  if(e.target === leaderboardOverlay) leaderboardOverlay.classList.remove('show');
+});
+
+async function openLeaderboard(){
+  leaderboardOverlay.classList.add('show');
+  leaderboardBody.innerHTML = `<p style="color:var(--muted);text-align:center;padding:24px 0;">Loading...</p>`;
+  try{
+    const res  = await fetch('/api/leaderboard?username='+encodeURIComponent(currentUser));
+    const data = await res.json();
+    renderLeaderboard(data);
+  } catch(e){
+    leaderboardBody.innerHTML = `<p style="color:var(--muted);text-align:center;padding:24px 0;">Unable to connect to the server.</p>`;
+  }
+}
+
+function rankBadgeClass(rankName){
+  return 'rank-badge rank-badge--' + rankName.toLowerCase();
+}
+
+function renderLeaderboard(data){
+  const { top, myEntry } = data;
+  let html = '';
+
+  if(myEntry){
+    const inTop = top.some(e => e.username.toLowerCase() === currentUser.toLowerCase());
+    html += `
+      <div class="lb-my-card">
+        <div class="lb-my-card-left">
+          <span class="lb-my-card-label">Your Position</span>
+          <span class="lb-my-card-pos">#${myEntry.position}${inTop ? '' : ' (outside top 20)'}</span>
+        </div>
+        <div class="lb-my-card-right">
+          <span class="${rankBadgeClass(myEntry.rankName)}" style="margin-left:0;">${myEntry.rankName}</span>
+          <div class="lb-my-card-earned">${peso(myEntry.totalEarned)}</div>
+        </div>
+      </div>`;
+  }
+
+  if(!top.length){
+    html += `<div class="lb-empty">No referral activity yet. Be the first to invite and top the leaderboard!</div>`;
+    leaderboardBody.innerHTML = html;
+    return;
+  }
+
+  html += `<div class="lb-list">`;
+  top.forEach(entry => {
+    const isYou = entry.username.toLowerCase() === currentUser.toLowerCase();
+    let posClass = 'lb-position';
+    let posLabel = '#' + entry.position;
+    if(entry.position === 1){ posClass += ' lb-position--top1'; posLabel = '🥇'; }
+    else if(entry.position === 2){ posClass += ' lb-position--top2'; posLabel = '🥈'; }
+    else if(entry.position === 3){ posClass += ' lb-position--top3'; posLabel = '🥉'; }
+
+    html += `
+      <div class="lb-item ${isYou ? 'lb-item--you' : ''}">
+        <div class="${posClass}">${posLabel}</div>
+        <div class="lb-user">
+          <div class="lb-username${isYou ? ' lb-username--you' : ''}">${escapeHtml(entry.username)}</div>
+          <div class="lb-meta"><span class="${rankBadgeClass(entry.rankName)}" style="margin-left:0;">${entry.rankName}</span></div>
+        </div>
+        <div class="lb-stats">
+          <div class="lb-earned">${peso(entry.totalEarned)}</div>
+          <div class="lb-invites">${entry.l1Count} invite${entry.l1Count === 1 ? '' : 's'}</div>
+        </div>
+      </div>`;
+  });
+  html += `</div>`;
+
+  leaderboardBody.innerHTML = html;
+}
