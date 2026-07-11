@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>ORB-X PH — Transaction History</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/dashboard.css">
+<style>
+  .txn-date-header{
+    font-size:10.5px; font-weight:800; letter-spacing:1.2px; text-transform:uppercase;
+    color:var(--muted); margin:20px 0 10px; padding-bottom:6px; border-bottom:1px solid var(--border);
+  }
+  .txn-date-header:first-child{ margin-top:0; }
+  .txn-item{
+    display:flex; align-items:center; gap:12px;
+    background:var(--card); border:1px solid var(--border); border-radius:14px;
+    padding:13px 15px; margin-bottom:8px; transition:border-color .2s;
+  }
+  .txn-item:hover{ border-color:rgba(135,160,255,0.3); }
+  .txn-icon{
+    width:38px; height:38px; border-radius:11px; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .txn-icon svg{ width:17px; height:17px; }
+  .txn-icon--daily_reward,
+  .txn-icon--referral_commission,
+  .txn-icon--signup_bonus,
+  .txn-icon--task_reward,
+  .txn-icon--survey_reward,
+  .txn-icon--admin_credit,
+  .txn-icon--withdrawal_refund{
+    background:rgba(124,255,178,0.1); border:1px solid rgba(124,255,178,0.25); color:#7CFFB2;
+  }
+  .txn-icon--withdrawal{
+    background:rgba(255,200,87,0.1); border:1px solid rgba(255,200,87,0.25); color:var(--gold);
+  }
+  .txn-info{ flex:1; min-width:0; }
+  .txn-title{ font-size:13px; font-weight:700; color:var(--text); }
+  .txn-desc{ font-size:11.5px; color:var(--muted); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .txn-time{ font-size:10.5px; color:var(--muted); opacity:0.7; margin-top:3px; }
+  .txn-amount{ font-family:'Orbitron',sans-serif; font-weight:800; font-size:14px; white-space:nowrap; flex-shrink:0; }
+  .txn-amount--pos{ color:#7CFFB2; }
+  .txn-amount--neg{ color:var(--gold); }
+  .txn-load-more{
+    width:100%; padding:12px; margin-top:10px; border-radius:12px;
+    border:1px solid rgba(77,166,255,0.3); background:rgba(77,166,255,0.07);
+    color:var(--blue); font-family:'Inter',sans-serif; font-size:13px; font-weight:700; cursor:pointer;
+  }
+  .txn-load-more:hover{ background:rgba(77,166,255,0.14); }
+  .txn-load-more:disabled{ opacity:0.5; cursor:not-allowed; }
+  .empty-state{ text-align:center; padding:50px 20px; color:var(--muted); font-size:13px; }
+</style>
+</head>
+<body class="dashboard-body">
+
+  <div class="stars"></div>
+  <div class="stars2"></div>
+
+  <header class="dash-header">
+    <div class="dash-brand">
+      <a href="welcome.html" class="icon-btn" title="Back">&larr;</a>
+      <div class="dash-logo-wrap">
+        <img src="assets/logo.png" alt="ORB-X PH" class="dash-logo-img">
+      </div>
+      <div class="dash-wordmark">ORB-<span>X</span> <small>PH</small></div>
+    </div>
+    <div class="dash-user">
+      <button id="themeToggle" class="icon-btn"><span id="themeIcon">🌙</span></button>
+      <span class="hide-mobile">Hi, <strong id="dashUsername">—</strong></span>
+    </div>
+  </header>
+
+  <main class="dash-main">
+    <div class="dash-intro">
+      <h1>Transaction History</h1>
+      <p>All your daily rewards, referral commissions, and withdrawals in one place.</p>
+    </div>
+
+    <div class="team-tabs" id="txnTabs">
+      <button type="button" class="team-tab-btn active" data-filter="all">All</button>
+      <button type="button" class="team-tab-btn" data-filter="rewards">Rewards</button>
+      <button type="button" class="team-tab-btn" data-filter="withdrawals">Withdrawals</button>
+    </div>
+
+    <div id="txnList"><p class="empty-state">Loading...</p></div>
+    <button class="txn-load-more" id="txnLoadMore" style="display:none;">Load More</button>
+  </main>
+
+<script>
+  const currentUser = localStorage.getItem('orbx_user');
+  if(!currentUser) window.location.href = 'index.html';
+  document.getElementById('dashUsername').textContent = currentUser || '';
+
+  const themeToggle = document.getElementById('themeToggle');
+  const themeIcon   = document.getElementById('themeIcon');
+  function applyTheme(t){
+    if(t==='light'){ document.body.setAttribute('data-theme','light'); themeIcon.textContent='☀️'; }
+    else{ document.body.removeAttribute('data-theme'); themeIcon.textContent='🌙'; }
+    localStorage.setItem('orbx_theme', t);
+  }
+  applyTheme(localStorage.getItem('orbx_theme') || 'dark');
+  themeToggle.addEventListener('click', () => applyTheme(document.body.getAttribute('data-theme')==='light'?'dark':'light'));
+
+  const TXN_LABELS = {
+    daily_reward:         'Daily Reward',
+    referral_commission:  'Referral Commission',
+    signup_bonus:         'Signup Bonus',
+    task_reward:          'Task Reward',
+    survey_reward:        'Survey Reward',
+    admin_credit:         'Admin Credit',
+    withdrawal:           'Withdrawal',
+    withdrawal_refund:    'Withdrawal Refund',
+    credit:               'Wallet Credit',
+  };
+
+  const TXN_ICONS = {
+    daily_reward:        `<svg viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="3.5" stroke="currentColor" stroke-width="1.5"/><path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.34 4.34l1.42 1.42M14.24 14.24l1.42 1.42M4.34 15.66l1.42-1.42M14.24 5.76l1.42-1.42" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`,
+    referral_commission:  `<svg viewBox="0 0 20 20" fill="none"><circle cx="8" cy="6" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M2 17c0-3.314 2.686-5 6-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="15" cy="13" r="2.5" stroke="currentColor" stroke-width="1.5"/></svg>`,
+    signup_bonus:         `<svg viewBox="0 0 20 20" fill="none"><rect x="2" y="8" width="16" height="10" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M2 11h16M10 8v10" stroke="currentColor" stroke-width="1.5"/><path d="M10 8C10 8 7 8 7 5.5a3 3 0 016 0C13 8 10 8 10 8z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>`,
+    task_reward:          `<svg viewBox="0 0 20 20" fill="none"><rect x="3" y="2" width="14" height="16" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M7 7l2 2 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 13h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`,
+    survey_reward:        `<svg viewBox="0 0 20 20" fill="none"><path d="M6 3h8a1 1 0 011 1v12a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1z" stroke="currentColor" stroke-width="1.5"/><path d="M8 7h4M8 10h4M8 13h2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`,
+    admin_credit:         `<svg viewBox="0 0 20 20" fill="none"><path d="M10 2l6 2.4v4.8c0 4-2.6 6.8-6 8.6-3.4-1.8-6-4.6-6-8.6V4.4L10 2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>`,
+    withdrawal:           `<svg viewBox="0 0 20 20" fill="none"><rect x="2" y="4" width="16" height="12" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M6 10h8M11 8l2 2-2 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    withdrawal_refund:    `<svg viewBox="0 0 20 20" fill="none"><path d="M4 10a6 6 0 1 1 2 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M4 14v-4h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    credit:               `<svg viewBox="0 0 20 20" fill="none"><path d="M10 15V5M10 5l-4 4M10 5l4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  };
+
+  function peso(n){
+    return '&#8369;'+Number(Math.abs(n)||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
+  }
+
+  function timeAgo(iso){
+    const d = Math.floor((Date.now()-new Date(iso).getTime())/1000);
+    if(d<60) return 'Just now';
+    if(d<3600) return Math.floor(d/60)+'m ago';
+    if(d<86400) return Math.floor(d/3600)+'h ago';
+    return Math.floor(d/86400)+'d ago';
+  }
+
+  function escapeHtml(str){
+    const div = document.createElement('div');
+    div.textContent = str == null ? '' : String(str);
+    return div.innerHTML;
+  }
+
+  let currentFilter = 'all';
+  let currentOffset = 0;
+  const PAGE_SIZE = 30;
+  let allLoadedTransactions = [];
+
+  const txnList     = document.getElementById('txnList');
+  const txnLoadMore = document.getElementById('txnLoadMore');
+  const txnTabs     = document.getElementById('txnTabs');
+
+  txnTabs.addEventListener('click', e => {
+    const btn = e.target.closest('.team-tab-btn');
+    if(!btn) return;
+    txnTabs.querySelectorAll('.team-tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentFilter = btn.dataset.filter;
+    currentOffset = 0;
+    allLoadedTransactions = [];
+    loadTransactions();
+  });
+
+  txnLoadMore.addEventListener('click', () => {
+    currentOffset += PAGE_SIZE;
+    loadTransactions(true);
+  });
+
+  function groupByDate(transactions){
+    const groups = {};
+    transactions.forEach(t => {
+      const key = new Date(t.createdAt).toLocaleDateString('en-PH', { year:'numeric', month:'long', day:'numeric' });
+      if(!groups[key]) groups[key] = [];
+      groups[key].push(t);
+    });
+    return groups;
+  }
+
+  function renderTransactions(){
+    if(!allLoadedTransactions.length){
+      txnList.innerHTML = '<p class="empty-state">No transactions yet.</p>';
+      return;
+    }
+
+    const groups = groupByDate(allLoadedTransactions);
+    let html = '';
+    Object.keys(groups).forEach(dateKey => {
+      html += `<div class="txn-date-header">${dateKey}</div>`;
+      groups[dateKey].forEach(t => {
+        const isNegative = t.amount < 0;
+        const label = TXN_LABELS[t.type] || 'Transaction';
+        const icon  = TXN_ICONS[t.type] || TXN_ICONS.credit;
+        html += `
+          <div class="txn-item">
+            <div class="txn-icon txn-icon--${t.type}">${icon}</div>
+            <div class="txn-info">
+              <div class="txn-title">${label}</div>
+              <div class="txn-desc">${escapeHtml(t.description || '')}</div>
+              <div class="txn-time">${timeAgo(t.createdAt)}</div>
+            </div>
+            <div class="txn-amount ${isNegative ? 'txn-amount--neg' : 'txn-amount--pos'}">${isNegative ? '-' : '+'}${peso(t.amount)}</div>
+          </div>`;
+      });
+    });
+
+    txnList.innerHTML = html;
+  }
+
+  async function loadTransactions(append){
+    if(!append){
+      txnList.innerHTML = '<p class="empty-state">Loading...</p>';
+      txnLoadMore.style.display = 'none';
+    } else {
+      txnLoadMore.disabled = true;
+      txnLoadMore.textContent = 'Loading...';
+    }
+
+    try{
+      const params = new URLSearchParams({ limit: PAGE_SIZE, offset: currentOffset });
+      if(currentFilter !== 'all') params.set('type', currentFilter);
+
+      const res  = await fetch('/api/transactions/'+encodeURIComponent(currentUser)+'?'+params.toString());
+      const data = await res.json();
+
+      if(append){ allLoadedTransactions = allLoadedTransactions.concat(data); }
+      else { allLoadedTransactions = data; }
+
+      renderTransactions();
+
+      txnLoadMore.disabled = false;
+      txnLoadMore.textContent = 'Load More';
+      txnLoadMore.style.display = data.length < PAGE_SIZE ? 'none' : 'block';
+    } catch(err){
+      txnList.innerHTML = '<p class="empty-state">Unable to connect to the server.</p>';
+    }
+  }
+
+  loadTransactions();
+</script>
+</body>
+</html>
