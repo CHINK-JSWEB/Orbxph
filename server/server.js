@@ -8,9 +8,13 @@ const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const cors = require('cors');
 
+
 const app = express();
 app.set('trust proxy', 1);
 
+process.on('unhandledRejection', (err) => {
+  console.error('[UNHANDLED REJECTION]', err);
+});
 app.use(helmet({
   contentSecurityPolicy: false, // naka-off muna, dahil static HTML/JS/CSS files ang gamit natin
   crossOriginResourcePolicy: { policy: 'cross-origin' }, // para gumana ang images/screenshots
@@ -421,24 +425,28 @@ async function processDailyRewards() {
   const now = Date.now();
   const r = await pool.query('SELECT * FROM daily_logs');
   for (const log of r.rows) {
-    const lastCredited = new Date(log.last_credited_at).getTime();
-    const elapsed = now - lastCredited;
-    if (elapsed >= 24 * 60 * 60 * 1000) {
-      await creditWallet(log.username, parseFloat(log.daily_reward), `Daily reward - ${log.tier}`, 'daily_reward');
-      const newTotal = parseFloat((parseFloat(log.total_credited || 0) + parseFloat(log.daily_reward)).toFixed(2));
-      await pool.query(
-        'UPDATE daily_logs SET last_credited_at = NOW(), total_credited = $1 WHERE order_id = $2',
-        [newTotal, log.order_id]
-      );
+    try {
+      const lastCredited = new Date(log.last_credited_at).getTime();
+      const elapsed = now - lastCredited;
+      if (elapsed >= 24 * 60 * 60 * 1000) {
+        await creditWallet(log.username, parseFloat(log.daily_reward), `Daily reward - ${log.tier}`, 'daily_reward');
+        const newTotal = parseFloat((parseFloat(log.total_credited || 0) + parseFloat(log.daily_reward)).toFixed(2));
+        await pool.query(
+          'UPDATE daily_logs SET last_credited_at = NOW(), total_credited = $1 WHERE order_id = $2',
+          [newTotal, log.order_id]
+        );
 
-      await createNotification(
-        log.username,
-        'daily_reward',
-        'Daily Reward Credited',
-        `You received your daily reward of ₱${Number(log.daily_reward).toLocaleString()} from your ${log.tier} package.`
-      );
+        await createNotification(
+          log.username,
+          'daily_reward',
+          'Daily Reward Credited',
+          `You received your daily reward of ₱${Number(log.daily_reward).toLocaleString()} from your ${log.tier} package.`
+        );
 
-      console.log(`[DAILY REWARD] ${log.username} +₱${log.daily_reward} (${log.tier})`);
+        console.log(`[DAILY REWARD] ${log.username} +₱${log.daily_reward} (${log.tier})`);
+      }
+    } catch (err) {
+      console.error(`[DAILY REWARD ERROR] username=${log.username} order=${log.order_id}:`, err.message);
     }
   }
 }
