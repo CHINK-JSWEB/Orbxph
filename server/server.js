@@ -163,15 +163,57 @@ async function getWallet(username) {
   };
 }
 
-async function creditWallet(username, amount, note) {
+async function creditWallet(username, amount, note, type) {
   await pool.query(
     `INSERT INTO wallets (username, income, withdrawn)
      VALUES ($1, $2, 0)
      ON CONFLICT (username) DO UPDATE SET income = wallets.income + $2, updated_at = NOW()`,
     [username, amount]
   );
+  await pool.query(
+    `INSERT INTO wallet_transactions (username, type, amount, description) VALUES ($1, $2, $3, $4)`,
+    [username, type || 'credit', amount, note || '']
+  );
   console.log(`[WALLET CREDIT] ${username} +₱${amount} (${note})`);
 }
+
+async function logWalletTransaction(username, type, amount, description) {
+  await pool.query(
+    `INSERT INTO wallet_transactions (username, type, amount, description) VALUES ($1, $2, $3, $4)`,
+    [username, type, amount, description || '']
+  );
+}
+
+function mapTransactionRow(t) {
+  return {
+    id: t.id,
+    type: t.type,
+    amount: parseFloat(t.amount),
+    description: t.description,
+    createdAt: t.created_at,
+  };
+}
+
+app.get('/api/transactions/:username', async (req, res) => {
+  const limit  = Math.min(parseInt(req.query.limit, 10) || 30, 200);
+  const offset = parseInt(req.query.offset, 10) || 0;
+  const type   = req.query.type;
+
+  let query = 'SELECT * FROM wallet_transactions WHERE LOWER(username) = LOWER($1)';
+  const params = [req.params.username];
+
+  if (type === 'rewards') {
+    query += ` AND type IN ('daily_reward','referral_commission','signup_bonus','task_reward','survey_reward','admin_credit')`;
+  } else if (type === 'withdrawals') {
+    query += ` AND type IN ('withdrawal','withdrawal_refund')`;
+  }
+
+  query += ' ORDER BY created_at DESC LIMIT $2 OFFSET $3';
+  params.push(limit, offset);
+
+  const r = await pool.query(query, params);
+  res.json(r.rows.map(mapTransactionRow));
+});
 
 // ── Referrals (PostgreSQL) ────────────────────────────────────
 function hashUsername(username) {
@@ -382,7 +424,7 @@ async function processDailyRewards() {
     const lastCredited = new Date(log.last_credited_at).getTime();
     const elapsed = now - lastCredited;
     if (elapsed >= 24 * 60 * 60 * 1000) {
-      await creditWallet(log.username, parseFloat(log.daily_reward), `Daily reward - ${log.tier}`);
+      await creditWallet(log.username, parseFloat(log.daily_reward), `Daily reward - ${log.tier}`, 'daily_reward');
       const newTotal = parseFloat((parseFloat(log.total_credited || 0) + parseFloat(log.daily_reward)).toFixed(2));
       await pool.query(
         'UPDATE daily_logs SET last_credited_at = NOW(), total_credited = $1 WHERE order_id = $2',
@@ -646,7 +688,7 @@ app.post('/api/signup', authLimiter, async (req, res) => {
   await getOrCreateReferral(username);
 
   if (referredBy) {
-  await creditWallet(username, REFERRAL_SIGNUP_BONUS, `Signup bonus - referred by ${referredBy}`);
+  await creditWallet(username, REFERRAL_SIGNUP_BONUS, `Signup bonus - referred by ${referredBy}`, 'signup_bonus');
   console.log(`[SIGNUP BONUS] ${username} +₱${REFERRAL_SIGNUP_BONUS} (referred by ${referredBy})`);
 
   await createNotification(
@@ -863,7 +905,8 @@ app.patch('/api/orders/:id', requireAdmin, async (req, res) => {
             if (inviterUser) {
               await creditWallet(
                 inviterUser.username, reward,
-                `Referral reward L${level} - ${order.username} (${order.tier})`
+                `Referral reward L${level} - ${order.username} (${order.tier})`,
+                'referral_commission'
               );
               await createNotification(
                 inviterUser.username,
@@ -969,7 +1012,7 @@ app.get('/api/wallet/:username', async (req, res) => {
 app.post('/api/wallet/:username/credit', requireAdmin, async (req, res) => {
   const { amount, note } = req.body || {};
   if (!amount || isNaN(amount)) return res.status(400).json({ error: 'Invalid amount.' });
-  await creditWallet(req.params.username, parseFloat(amount), note || 'Admin credit');
+  await creditWallet(req.params.username, parseFloat(amount), note || 'Admin credit', 'admin_credit');
   const w = await getWallet(req.params.username);
   res.json({ success: true, wallet: w });
 });
@@ -1130,7 +1173,7 @@ app.post('/api/task-rewards/:username/claim/:taskId', async (req, res) => {
     'INSERT INTO task_logs (username, task_id, reward) VALUES ($1, $2, $3)',
     [username, task.id, task.reward]
   );
-  await creditWallet(username, task.reward, `Task reward - ${task.title}`);
+  await creditWallet(username, task.reward, `Task reward - ${task.title}`, 'task_reward');
 
   await createNotification(
     username,
@@ -1271,7 +1314,7 @@ app.post('/api/survey/:username/answer', async (req, res) => {
   );
 
   if (isCorrect) {
-    await creditWallet(username, SURVEY_REWARD, 'Survey question - correct answer');
+await creditWallet(username, SURVEY_REWARD, 'Survey question - correct answer', 'survey_reward');
   }
 
   res.json({
@@ -1418,7 +1461,8 @@ app.patch('/api/admin/withdrawals/:id', requireAdmin, async (req, res) => {
     'UPDATE wallets SET withdrawn = $1, withdraw_cycle_start = NOW() WHERE LOWER(username) = LOWER($2)',
     [newWithdrawn, w.username]
   );
-  await pool.query('UPDATE withdrawals SET processed_at = NOW() WHERE id = $1', [w.id]);
+await pool.query('UPDATE withdrawals SET processed_at = NOW() WHERE id = $1', [w.id]);
+  await logWalletTransaction(w.username, 'withdrawal', -w.amount, `Withdrawal to ${w.method} (${w.accountNumber})`);
 
   await createNotification(
     w.username,
@@ -1439,7 +1483,8 @@ app.patch('/api/admin/withdrawals/:id', requireAdmin, async (req, res) => {
       'UPDATE wallets SET withdrawn = $1 WHERE LOWER(username) = LOWER($2)',
       [newWithdrawn, w.username]
     );
-    console.log(`[WITHDRAW REVERTED] ${w.username} +₱${w.amount} refunded to balance.`);
+console.log(`[WITHDRAW REVERTED] ${w.username} +₱${w.amount} refunded to balance.`);
+    await logWalletTransaction(w.username, 'withdrawal_refund', w.amount, `Withdrawal ${status} - refunded to balance`);
   }
 
   await createNotification(
