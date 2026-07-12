@@ -1338,6 +1338,11 @@
       <svg class="nav-icon" viewBox="0 0 20 20" fill="none"><path d="M3 11v-1a7 7 0 0114 0v1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><rect x="2.3" y="11" width="3.4" height="4.6" rx="1.2" stroke="currentColor" stroke-width="1.5"/><rect x="14.3" y="11" width="3.4" height="4.6" rx="1.2" stroke="currentColor" stroke-width="1.5"/><path d="M15.5 15.6v.4a3 3 0 01-3 3h-1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
       Customer Service
     </a>
+<a href="#" class="nav-link" id="navSupportChatLink">
+  <svg class="nav-icon" viewBox="0 0 20 20" fill="none"><path d="M3 9a6 6 0 1112 0c0 3.3-2.7 6-6 6-1 0-1.9-.2-2.7-.6L3 16l1.6-3.3A5.9 5.9 0 013 9z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+  Live Chat
+  <span class="nav-badge-dot hidden" id="navSupportDot"></span>
+</a>
     <a href="#" class="nav-link" id="navLeaderboardLink">
   <svg class="nav-icon" viewBox="0 0 20 20" fill="none"><path d="M4 16V10M10 16V4M16 16v-7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
   Leaderboard
@@ -1948,7 +1953,25 @@
       </div>
     </div>
   </div>
-
+<!-- LIVE CHAT MODAL -->
+<div class="modal-overlay" id="supportChatOverlay">
+  <div class="modal-box modal-box--wide">
+    <div class="modal-head">
+      <div class="modal-head-title" style="gap:10px;">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style="color:var(--blue)"><path d="M3 9a6 6 0 1112 0c0 3.3-2.7 6-6 6-1 0-1.9-.2-2.7-.6L3 16l1.6-3.3A5.9 5.9 0 013 9z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+        <span>Live Chat with Admin</span>
+      </div>
+      <button class="modal-close" id="supportChatClose">&times;</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;padding:0;height:60vh;">
+      <div id="supportMsgList" class="support-msg-list"></div>
+      <div class="support-input-row">
+        <textarea id="supportInput" rows="1" placeholder="Type your message..."></textarea>
+        <button id="supportSendBtn">Send</button>
+      </div>
+    </div>
+  </div>
+</div>
   <!-- TASK REWARDS HUB MODAL -->
   <div class="modal-overlay" id="taskHubOverlay">
     <div class="modal-box">

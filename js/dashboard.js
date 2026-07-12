@@ -167,6 +167,7 @@ const NOTIF_ICONS = {
   account_blocked: `<svg viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="9" stroke="currentColor" stroke-width="1.5"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07" stroke="currentColor" stroke-width="1.5"/></svg>`,
   account_unblocked: `<svg viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="9" stroke="currentColor" stroke-width="1.5"/><path d="M6.5 10.5l2.5 2.5 4.5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
   announcement: `<svg viewBox="0 0 20 20" fill="none"><path d="M15 17h5l-1.4-1.4c-.4-.4-.6-.9-.6-1.4V11a6 6 0 00-4-5.7V5a2 2 0 10-4 0v.3C7.7 6.2 6 8.4 6 11v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+support_reply: `<svg viewBox="0 0 20 20" fill="none"><path d="M3 9a6 6 0 1112 0c0 3.3-2.7 6-6 6-1 0-1.9-.2-2.7-.6L3 16l1.6-3.3A5.9 5.9 0 013 9z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>`,
 };
 
 const notifBellBtn  = document.getElementById('notifBellBtn');
@@ -1092,4 +1093,93 @@ function renderLeaderboard(data){
   html += `</div>`;
 
   leaderboardBody.innerHTML = html;
+}
+// ══════════════════════════════════════════════════════════════
+//  LIVE CHAT
+// ══════════════════════════════════════════════════════════════
+let supportPollInterval = null;
+let supportLastCount = 0;
+
+function escapeHtmlChat(str){
+  const div = document.createElement('div');
+  div.textContent = str == null ? '' : String(str);
+  return div.innerHTML;
+}
+function supportTimeFmt(iso){
+  return new Date(iso).toLocaleTimeString('en-PH', { hour:'2-digit', minute:'2-digit' });
+}
+
+async function loadSupportChat(scrollDown){
+  try{
+    const res  = await fetch('/api/support/'+encodeURIComponent(currentUser));
+    const data = await res.json();
+    const list = document.getElementById('supportMsgList');
+    if(!data.messages.length){
+      list.innerHTML = '<p class="support-empty">Wala pang mensahe. Simulan ang usapan sa ibaba.</p>';
+    } else {
+      list.innerHTML = data.messages.map(m => `
+        <div class="support-bubble support-bubble--${m.senderType}">
+          <div>${escapeHtmlChat(m.message)}</div>
+          <div class="support-bubble-time">${m.senderType === 'admin' ? 'Admin · ' : ''}${supportTimeFmt(m.createdAt)}</div>
+        </div>`).join('');
+    }
+    if(scrollDown || data.messages.length !== supportLastCount){
+      list.scrollTop = list.scrollHeight;
+    }
+    supportLastCount = data.messages.length;
+    fetch('/api/support/'+encodeURIComponent(currentUser)+'/read', { method:'PATCH' });
+  } catch(e){}
+}
+
+function openSupportChat(){
+  document.getElementById('supportChatOverlay').classList.add('show');
+  loadSupportChat(true);
+  clearInterval(supportPollInterval);
+  supportPollInterval = setInterval(() => loadSupportChat(false), 5000);
+}
+function closeSupportChat(){
+  document.getElementById('supportChatOverlay').classList.remove('show');
+  clearInterval(supportPollInterval);
+}
+
+const navSupportChatLink = document.getElementById('navSupportChatLink');
+if(navSupportChatLink) navSupportChatLink.addEventListener('click', e => {
+  e.preventDefault();
+  document.getElementById('navDrawer').classList.remove('open');
+  document.getElementById('navOverlay').classList.remove('show');
+  setTimeout(openSupportChat, 150);
+});
+document.getElementById('supportChatClose').addEventListener('click', closeSupportChat);
+document.getElementById('supportChatOverlay').addEventListener('click', e => {
+  if(e.target.id === 'supportChatOverlay') closeSupportChat();
+});
+
+const supportInput   = document.getElementById('supportInput');
+const supportSendBtn = document.getElementById('supportSendBtn');
+async function sendSupportMessage(){
+  const text = supportInput.value.trim();
+  if(!text) return;
+  supportSendBtn.disabled = true;
+  supportInput.value = '';
+  try{
+    await fetch('/api/support/'+encodeURIComponent(currentUser)+'/message', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ message: text })
+    });
+    await loadSupportChat(true);
+  } catch(e){ alert('Hindi makonekta sa server.'); }
+  supportSendBtn.disabled = false;
+}
+supportSendBtn.addEventListener('click', sendSupportMessage);
+supportInput.addEventListener('keydown', e => {
+  if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendSupportMessage(); }
+});
+
+// Nav dot indicator — checangi kasabay ng notifications
+async function checkSupportUnread(){
+  try{
+    const res  = await fetch('/api/support/'+encodeURIComponent(currentUser));
+    const data = await res.json();
+    const unreadFromAdmin = data.messages.filter(m => m.senderType === 'admin').length; // simple presence check lang; read state is server-side
+    // Simpler: gamitin na lang ang notifications system mo (type: support_reply) para sa badge — auto na 'yan sa bell.
+  } catch(e){}
 }

@@ -195,7 +195,7 @@ function initDashboard(){
   }
   updateSidebarAvatar();
 
-  const navIcons = { overview:'overview', orders:'orders', users:'users', featured:'featured', admins:'admins', profile:'profile' };
+const navIcons = { overview:'overview', orders:'orders', users:'users', featured:'featured', admins:'admins', profile:'profile', support:'featured' };
   document.querySelectorAll('.sidebar-nav-item').forEach(btn=>{
     const tab = btn.dataset.tab;
     const iconEl = btn.querySelector('.nav-icon');
@@ -209,7 +209,6 @@ function initDashboard(){
   startLiveClock();
   loadAllData();
   setActiveTab('overview');
-
   // Wire up withdrawal filters
   document.querySelectorAll('[data-wf]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -282,6 +281,7 @@ function setActiveTab(tabName){
   if(tabName==='orders')   loadOrders();
   if(tabName==='featured') loadFeatured();
   if(tabName==='profile')  loadProfile();
+  if(tabName==='support')  { loadSupportConversations().then(renderSupportList); }
 }
 document.querySelectorAll('.sidebar-nav-item').forEach(btn=>{
   btn.addEventListener('click',()=>{ setActiveTab(btn.dataset.tab); closeSidebar(); });
@@ -306,6 +306,7 @@ async function loadAllData(){
   await loadOrdersData();
   await loadOrdersIncludingArchivedData();
   await loadWithdrawalsData();
+  await loadSupportConversations();
   renderStats();
   renderIncome();
   renderWithdrawals();
@@ -1134,3 +1135,97 @@ function timeAgo(iso){
 // ── Refresh ───────────────────────────────────────────────────
 document.getElementById('refreshBtn').addEventListener('click',()=>loadAllData());
 setInterval(()=>{ if(!dashboardEl.classList.contains('hidden')) loadAllData(); },15000);
+// ══════════════════════════════════════════════════════════════
+//  SUPPORT CHAT (Admin)
+// ══════════════════════════════════════════════════════════════
+let supportConvoCache = [];
+let activeSupportConvoId = null;
+let supportThreadPollInterval = null;
+
+async function loadSupportConversations(){
+  try{
+    const r = await fetch('/api/admin/support/conversations', { headers:{ Authorization:'Bearer '+getToken() } });
+    supportConvoCache = await r.json();
+  } catch(e){ supportConvoCache = []; }
+  renderSupportBadge();
+}
+
+function renderSupportBadge(){
+  const totalUnread = supportConvoCache.reduce((s,c) => s + c.unreadCount, 0);
+  const badge = document.getElementById('supportBadge');
+  if(badge){ badge.textContent = totalUnread; badge.classList.toggle('show', totalUnread > 0); }
+}
+
+function renderSupportList(){
+  const list = document.getElementById('supportConvoList');
+  if(!supportConvoCache.length){ list.innerHTML = '<p class="admin-empty">Wala pang conversations.</p>'; return; }
+  list.innerHTML = '<div class="order-cards-wrap">' + supportConvoCache.map(c => `
+    <div class="order-card" data-convo="${c.id}" style="cursor:pointer;">
+      <div class="order-info">
+        <div class="order-info-top">
+          <span class="order-user">${c.username}</span>
+          ${c.unreadCount > 0 ? `<span class="order-status pending">${c.unreadCount} new</span>` : ''}
+          <span class="order-status ${c.status === 'open' ? 'reviewed' : 'flagged'}">${c.status}</span>
+        </div>
+        <div class="order-meta">${c.lastMessage ? c.lastMessage.slice(0,80) : 'No messages yet'}</div>
+        <div class="order-time">${c.lastMessageAt ? timeAgo(c.lastMessageAt) : ''}</div>
+      </div>
+    </div>`).join('') + '</div>';
+  list.querySelectorAll('[data-convo]').forEach(card => {
+    card.addEventListener('click', () => openSupportThread(card.dataset.convo));
+  });
+}
+
+async function openSupportThread(convoId){
+  activeSupportConvoId = convoId;
+  const convo = supportConvoCache.find(c => String(c.id) === String(convoId));
+  document.getElementById('supportThreadTitle').textContent = convo ? `Chat with ${convo.username}` : 'Chat';
+  document.getElementById('supportThreadOverlay').classList.add('show');
+  await loadSupportThreadMessages();
+  await fetch('/api/admin/support/'+convoId+'/read', { method:'PATCH', headers:{ Authorization:'Bearer '+getToken() } });
+  await loadSupportConversations();
+  renderSupportList();
+  clearInterval(supportThreadPollInterval);
+  supportThreadPollInterval = setInterval(loadSupportThreadMessages, 5000);
+}
+
+async function loadSupportThreadMessages(){
+  if(!activeSupportConvoId) return;
+  try{
+    const r = await fetch('/api/admin/support/'+activeSupportConvoId+'/messages', { headers:{ Authorization:'Bearer '+getToken() } });
+    const msgs = await r.json();
+    const list = document.getElementById('supportThreadMsgList');
+    list.innerHTML = msgs.map(m => `
+      <div class="support-bubble support-bubble--${m.senderType === 'admin' ? 'user' : 'admin'}">
+        <div>${m.message.replace(/</g,'&lt;')}</div>
+        <div class="support-bubble-time">${m.senderType === 'admin' ? (m.senderName||'Admin') : m.senderName} · ${new Date(m.createdAt).toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit'})}</div>
+      </div>`).join('');
+    list.scrollTop = list.scrollHeight;
+  } catch(e){}
+}
+
+document.getElementById('supportThreadClose').addEventListener('click', () => {
+  document.getElementById('supportThreadOverlay').classList.remove('show');
+  clearInterval(supportThreadPollInterval);
+  activeSupportConvoId = null;
+});
+document.getElementById('supportThreadOverlay').addEventListener('click', e => {
+  if(e.target.id === 'supportThreadOverlay'){
+    document.getElementById('supportThreadOverlay').classList.remove('show');
+    clearInterval(supportThreadPollInterval);
+    activeSupportConvoId = null;
+  }
+});
+
+document.getElementById('supportThreadSendBtn').addEventListener('click', async () => {
+  const input = document.getElementById('supportThreadInput');
+  const text = input.value.trim();
+  if(!text || !activeSupportConvoId) return;
+  input.value = '';
+  await fetch('/api/admin/support/'+activeSupportConvoId+'/message', {
+    method:'POST', headers:{'Content-Type':'application/json', Authorization:'Bearer '+getToken()},
+    body: JSON.stringify({ message: text })
+  });
+  await loadSupportThreadMessages();
+  await loadSupportConversations();
+});

@@ -1310,3 +1310,13 @@
 .lb-invites { font-size:10.5px; color:var(--muted); }
 .lb-earned { font-family:'Orbitron',sans-serif; font-weight:800; font-size:13px; color:#7CFFB2; }
 .lb-empty { text-align:center; padding:32px 16px; color:var(--muted); font-size:13px; }
+.support-msg-list{ flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:10px; }
+.support-bubble{ max-width:75%; padding:10px 14px; border-radius:14px; font-size:13px; line-height:1.5; }
+.support-bubble--user{ align-self:flex-end; background:linear-gradient(90deg,var(--blue),var(--violet)); color:#fff; border-bottom-right-radius:4px; }
+.support-bubble--admin{ align-self:flex-start; background:rgba(255,255,255,0.06); border:1px solid var(--border); color:var(--text); border-bottom-left-radius:4px; }
+.support-bubble-time{ font-size:9.5px; opacity:.6; margin-top:4px; }
+.support-input-row{ display:flex; gap:8px; padding:12px 14px; border-top:1px solid var(--border); }
+.support-input-row textarea{ flex:1; resize:none; background:rgba(0,0,0,0.2); border:1px solid var(--border); border-radius:10px; padding:9px 12px; color:var(--text); font-family:'Inter',sans-serif; font-size:13px; max-height:80px; }
+.support-input-row button{ padding:0 18px; border:none; border-radius:10px; background:linear-gradient(90deg,var(--blue),var(--violet)); color:#fff; font-weight:700; font-size:13px; cursor:pointer; }
+.nav-badge-dot{ width:8px;height:8px;border-radius:50%;background:#ff5050;margin-left:auto;box-shadow:0 0 6px rgba(255,80,80,0.6); }
+.support-empty{ text-align:center;color:var(--muted);font-size:12.5px;padding:30px 0; }

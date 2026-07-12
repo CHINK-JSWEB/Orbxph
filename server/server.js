@@ -1562,6 +1562,102 @@ app.post('/api/admin/change-password', authLimiter, requireAdmin, async (req, re
   res.json({ success: true });
 });
 
+// ── Support Chat ──────────────────────────────────────────────
+async function getOrCreateSupportConversation(username) {
+  let r = await pool.query('SELECT * FROM support_conversations WHERE LOWER(username) = LOWER($1)', [username]);
+  if (!r.rows[0]) {
+    await pool.query('INSERT INTO support_conversations (username) VALUES ($1)', [username]);
+    r = await pool.query('SELECT * FROM support_conversations WHERE LOWER(username) = LOWER($1)', [username]);
+  }
+  return r.rows[0];
+}
+function mapSupportMsg(m) {
+  return { id: m.id, senderType: m.sender_type, senderName: m.sender_name, message: m.message, createdAt: m.created_at };
+}
+
+// CLIENT: get/create conversation + messages
+app.get('/api/support/:username', async (req, res) => {
+  const convo = await getOrCreateSupportConversation(req.params.username);
+  const msgs = await pool.query('SELECT * FROM support_messages WHERE conversation_id = $1 ORDER BY created_at ASC', [convo.id]);
+  res.json({ conversationId: convo.id, status: convo.status, messages: msgs.rows.map(mapSupportMsg) });
+});
+
+// CLIENT: send message
+app.post('/api/support/:username/message', submitLimiter, async (req, res) => {
+  const { message } = req.body || {};
+  if (!message || !message.trim()) return res.status(400).json({ error: 'Walang laman ang mensahe.' });
+  const convo = await getOrCreateSupportConversation(req.params.username);
+  await pool.query(
+    `INSERT INTO support_messages (conversation_id, sender_type, sender_name, message, read_by_user, read_by_admin)
+     VALUES ($1, 'user', $2, $3, true, false)`,
+    [convo.id, req.params.username, message.trim()]
+  );
+  await pool.query(`UPDATE support_conversations SET status = 'open', updated_at = NOW() WHERE id = $1`, [convo.id]);
+  res.json({ success: true });
+});
+
+// CLIENT: mark admin replies as read
+app.patch('/api/support/:username/read', async (req, res) => {
+  const convo = await getOrCreateSupportConversation(req.params.username);
+  await pool.query(`UPDATE support_messages SET read_by_user = true WHERE conversation_id = $1 AND sender_type = 'admin'`, [convo.id]);
+  res.json({ success: true });
+});
+
+// ADMIN: list all conversations w/ preview + unread count
+app.get('/api/admin/support/conversations', requireAdmin, async (req, res) => {
+  const r = await pool.query(`
+    SELECT c.*,
+      (SELECT message FROM support_messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) AS last_message,
+      (SELECT created_at FROM support_messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) AS last_message_at,
+      (SELECT COUNT(*) FROM support_messages WHERE conversation_id = c.id AND sender_type = 'user' AND read_by_admin = false) AS unread_count
+    FROM support_conversations c
+    ORDER BY last_message_at DESC NULLS LAST
+  `);
+  res.json(r.rows.map(row => ({
+    id: row.id, username: row.username, status: row.status,
+    lastMessage: row.last_message, lastMessageAt: row.last_message_at,
+    unreadCount: parseInt(row.unread_count, 10), updatedAt: row.updated_at,
+  })));
+});
+
+// ADMIN: get messages of one conversation
+app.get('/api/admin/support/:id/messages', requireAdmin, async (req, res) => {
+  const msgs = await pool.query('SELECT * FROM support_messages WHERE conversation_id = $1 ORDER BY created_at ASC', [req.params.id]);
+  res.json(msgs.rows.map(mapSupportMsg));
+});
+
+// ADMIN: reply
+app.post('/api/admin/support/:id/message', requireAdmin, async (req, res) => {
+  const { message } = req.body || {};
+  if (!message || !message.trim()) return res.status(400).json({ error: 'Message required.' });
+  const convoR = await pool.query('SELECT * FROM support_conversations WHERE id = $1', [req.params.id]);
+  const convo = convoR.rows[0];
+  if (!convo) return res.status(404).json({ error: 'Conversation not found.' });
+  await pool.query(
+    `INSERT INTO support_messages (conversation_id, sender_type, sender_name, message, read_by_user, read_by_admin)
+     VALUES ($1, 'admin', $2, $3, false, true)`,
+    [convo.id, req.adminUser.username, message.trim()]
+  );
+  await pool.query(`UPDATE support_conversations SET status = 'open', updated_at = NOW() WHERE id = $1`, [convo.id]);
+  await createNotification(convo.username, 'support_reply', 'New Support Message',
+    `Sumagot ang admin: "${message.trim().slice(0, 80)}"`);
+  res.json({ success: true });
+});
+
+// ADMIN: mark user messages read
+app.patch('/api/admin/support/:id/read', requireAdmin, async (req, res) => {
+  await pool.query(`UPDATE support_messages SET read_by_admin = true WHERE conversation_id = $1 AND sender_type = 'user'`, [req.params.id]);
+  res.json({ success: true });
+});
+
+// ADMIN: close/reopen
+app.patch('/api/admin/support/:id/status', requireAdmin, async (req, res) => {
+  const { status } = req.body || {};
+  if (!['open', 'closed'].includes(status)) return res.status(400).json({ error: 'Invalid status.' });
+  await pool.query('UPDATE support_conversations SET status = $1, updated_at = NOW() WHERE id = $2', [status, req.params.id]);
+  res.json({ success: true });
+});
+
 // ── Start ─────────────────────────────────────────────────────
 app.listen(PORT, async () => {
   console.log(`ORB-X PH server running sa http://localhost:${PORT}`);

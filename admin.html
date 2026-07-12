@@ -118,6 +118,11 @@
         <span class="nav-icon"></span>
         <span class="nav-label">Users</span>
       </button>
+      <button class="sidebar-nav-item" data-tab="support">
+        <span class="nav-icon"></span>
+        <span class="nav-label">Support Chat</span>
+        <span class="nav-badge" id="supportBadge"></span>
+      </button>
       <button class="sidebar-nav-item" data-tab="featured">
         <span class="nav-icon"></span>
         <span class="nav-label">Featured</span>
@@ -245,7 +250,33 @@
       </div>
       <div class="user-list" id="userList"><p class="admin-empty">Loading...</p></div>
     </div>
+<!-- SUPPORT CHAT -->
+<div class="admin-tab-panel hidden" id="tab-support">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Support <span class="page-title-accent">Chat</span></h1>
+      <p class="page-sub">Lahat ng conversations ng users, nasa isang lugar.</p>
+    </div>
+  </div>
+  <div id="supportConvoList"><p class="admin-empty">Loading...</p></div>
+</div>
 
+<!-- SUPPORT CHAT THREAD MODAL -->
+<div class="modal-overlay" id="supportThreadOverlay">
+  <div class="modal-box modal-box--wide">
+    <div class="modal-head">
+      <span id="supportThreadTitle">Chat</span>
+      <button class="modal-close" id="supportThreadClose">&times;</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;padding:0;height:60vh;">
+      <div id="supportThreadMsgList" class="support-msg-list"></div>
+      <div class="support-input-row">
+        <textarea id="supportThreadInput" rows="1" placeholder="Type your reply..."></textarea>
+        <button id="supportThreadSendBtn">Send</button>
+      </div>
+    </div>
+  </div>
+</div>
     <!-- FEATURED / ANNOUNCEMENTS -->
     <div class="admin-tab-panel hidden" id="tab-featured">
       <div class="page-header">
