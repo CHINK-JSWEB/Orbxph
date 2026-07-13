@@ -74,6 +74,12 @@ function icon(name, cls=''){
   return `<span class="svg-icon ${cls}">${ICONS[name]||''}</span>`;
 }
 
+function escapeHtmlAdmin(str){
+  const div = document.createElement('div');
+  div.textContent = str == null ? '' : String(str);
+  return div.innerHTML;
+}
+
 // ── Token helpers ─────────────────────────────────────────────
 function getToken(){ return localStorage.getItem('orbx_admin_token'); }
 function setToken(t){ localStorage.setItem('orbx_admin_token', t); }
@@ -499,7 +505,7 @@ function buildWithdrawalCard(w){
           ${w.processedAt ? `<br>Processed: ${timeAgo(w.processedAt)}` : ''}
           ${w.notes ? `<br>Notes: ${w.notes}` : ''}
         </div>
-        ${w.feedback ? `<div class="wd-request-feedback">${icon('warning','icon-xs')} ${w.feedback}</div>` : ''}
+        ${w.feedback ? `<div class="wd-request-feedback">${icon('warning','icon-xs')} ${escapeHtmlAdmin(w.feedback)}</div>` : ''}
       </div>
       <div class="wd-request-actions">
         <button class="wd-pay-btn" data-wid="${w.id}" ${isPaid ? 'disabled' : ''}>
@@ -755,7 +761,7 @@ function buildOrderCard(o){
         <div class="order-time">${timeAgo(o.createdAt)}</div>
         ${isApproved&&o.approvedAt?`<div class="order-approved-time">${icon('approve','icon-xs')} Approved ${timeAgo(o.approvedAt)}</div>`:''}
         ${isFlagged?`<div class="order-flagged-notice">${icon('locked','icon-xs')} Hindi na maaprubahan ang order na ito.</div>`:''}
-        ${o.feedback?`<div class="order-feedback-tag">${icon('warning','icon-xs')} ${o.feedback}</div>`:''}
+${o.feedback?`<div class="order-feedback-tag">${icon('warning','icon-xs')} ${escapeHtmlAdmin(o.feedback)}</div>`:''}
       </div>
       <div class="order-actions">
         <button class="approve-btn ${isFlagged?'approve-btn--blocked':''}" data-id="${o.id}" ${!canApprove?'disabled':''}>
@@ -841,13 +847,15 @@ async function loadUsers(){
     const r=await fetch('/api/admin/users',{headers:{Authorization:'Bearer '+getToken()}});
     const users=await r.json();
     if(!users.length){ list.innerHTML='<p class="admin-empty">Wala pang nakarehistrong user.</p>'; return; }
+const sortedUsers = users.slice().sort((a,b) => (b.balance||0) - (a.balance||0));
     list.innerHTML=`
       <div class="data-table" style="overflow-x:auto;">
-        <div class="data-table-head" style="grid-template-columns:1.5fr 1.5fr 1.2fr 1fr 1fr 1.2fr;"><span>Username</span><span>Phone</span><span>Joined</span><span>Status</span><span>Block</span><span>Password</span></div>
-        ${users.map(u=>`
-          <div class="data-table-row" style="grid-template-columns:1.5fr 1.5fr 1.2fr 1fr 1fr 1.2fr;">
+        <div class="data-table-head" style="grid-template-columns:1.3fr 1.3fr 1fr 1fr 0.9fr 0.9fr 1fr;"><span>Username</span><span>Phone</span><span>Balance</span><span>Joined</span><span>Status</span><span>Block</span><span>Password</span></div>
+        ${sortedUsers.map(u=>`
+          <div class="data-table-row" style="grid-template-columns:1.3fr 1.3fr 1fr 1fr 0.9fr 0.9fr 1fr;">
             <span class="dt-username">${u.username}</span>
             <span class="dt-phone">${u.phone}</span>
+            <span class="dt-balance">₱${Number(u.balance||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
             <span class="dt-date">${new Date(u.createdAt).toLocaleDateString('en-PH')}</span>
             <span class="dt-status ${u.blocked?'blocked':'active'}">${u.blocked?'Blocked':'Active'}</span>
             <span><button class="block-btn ${u.blocked?'unblock':''}" data-username="${u.username}" data-blocked="${u.blocked}">
@@ -962,8 +970,8 @@ function renderAnnouncements(){
               <span class="announcement-type-badge" style="color:${meta.color};background:${meta.bg};border:1px solid ${meta.border};">${meta.label}</span>
               ${!a.active?'<span class="announcement-status-tag inactive">Inactive</span>':expired?'<span class="announcement-status-tag expired">Expired</span>':'<span class="announcement-status-tag active">Live</span>'}
             </div>
-            <div class="announcement-title">${a.title}</div>
-            <div class="announcement-body">${a.body}</div>
+            <div class="announcement-title">${escapeHtmlAdmin(a.title)}</div>
+            <div class="announcement-body">${escapeHtmlAdmin(a.body)}</div>
             <div class="announcement-footer">
               ${a.expiry?`<span class="announcement-expiry">Until: ${new Date(a.expiry).toLocaleDateString('en-PH')}</span>`:'<span class="announcement-expiry">No expiry</span>'}
               <div class="announcement-actions">
@@ -1197,10 +1205,17 @@ async function loadSupportThreadMessages(){
     const list = document.getElementById('supportThreadMsgList');
     list.innerHTML = msgs.map(m => `
       <div class="support-bubble support-bubble--${m.senderType === 'admin' ? 'user' : 'admin'}">
-        <div>${m.message.replace(/</g,'&lt;')}</div>
+        ${m.attachmentUrl ? `<img class="support-bubble-img" src="${m.attachmentUrl}" data-full="${m.attachmentUrl}" alt="attachment">` : ''}
+        ${m.message ? `<div>${m.message.replace(/</g,'&lt;')}</div>` : ''}
         <div class="support-bubble-time">${m.senderType === 'admin' ? (m.senderName||'Admin') : m.senderName} · ${new Date(m.createdAt).toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit'})}</div>
       </div>`).join('');
     list.scrollTop = list.scrollHeight;
+    list.querySelectorAll('.support-bubble-img').forEach(img => {
+      img.addEventListener('click', () => {
+        document.getElementById('imgFull').src = img.dataset.full;
+        document.getElementById('imgOverlay').classList.add('show');
+      });
+    });
   } catch(e){}
 }
 
@@ -1217,14 +1232,47 @@ document.getElementById('supportThreadOverlay').addEventListener('click', e => {
   }
 });
 
+const supportThreadAttachBtn     = document.getElementById('supportThreadAttachBtn');
+const supportThreadAttachInput   = document.getElementById('supportThreadAttachInput');
+const supportThreadAttachPreview = document.getElementById('supportThreadAttachPreview');
+let supportThreadSelectedFile = null;
+
+if(supportThreadAttachBtn) supportThreadAttachBtn.addEventListener('click', () => supportThreadAttachInput.click());
+if(supportThreadAttachInput) supportThreadAttachInput.addEventListener('change', () => {
+  const file = supportThreadAttachInput.files[0];
+  if(!file) return;
+  supportThreadSelectedFile = file;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    supportThreadAttachPreview.innerHTML = `
+      <img src="${ev.target.result}" alt="preview">
+      <button type="button" id="supportThreadAttachRemove">&times;</button>`;
+    supportThreadAttachPreview.style.display = 'flex';
+    document.getElementById('supportThreadAttachRemove').addEventListener('click', () => {
+      supportThreadSelectedFile = null;
+      supportThreadAttachInput.value = '';
+      supportThreadAttachPreview.style.display = 'none';
+      supportThreadAttachPreview.innerHTML = '';
+    });
+  };
+  reader.readAsDataURL(file);
+});
+
 document.getElementById('supportThreadSendBtn').addEventListener('click', async () => {
   const input = document.getElementById('supportThreadInput');
   const text = input.value.trim();
-  if(!text || !activeSupportConvoId) return;
+  if((!text && !supportThreadSelectedFile) || !activeSupportConvoId) return;
   input.value = '';
+  const fileToSend = supportThreadSelectedFile;
+  supportThreadSelectedFile = null;
+  supportThreadAttachPreview.style.display = 'none';
+  supportThreadAttachPreview.innerHTML = '';
+  supportThreadAttachInput.value = '';
+  const fd = new FormData();
+  fd.append('message', text);
+  if(fileToSend) fd.append('attachment', fileToSend);
   await fetch('/api/admin/support/'+activeSupportConvoId+'/message', {
-    method:'POST', headers:{'Content-Type':'application/json', Authorization:'Bearer '+getToken()},
-    body: JSON.stringify({ message: text })
+    method:'POST', headers:{ Authorization:'Bearer '+getToken() }, body: fd
   });
   await loadSupportThreadMessages();
   await loadSupportConversations();

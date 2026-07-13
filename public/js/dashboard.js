@@ -1,6 +1,11 @@
 // ── Auth guard ────────────────────────────────────────────────
 const currentUser = localStorage.getItem('orbx_user');
-if (!currentUser) window.location.href = 'index.html';
+const currentUserToken = localStorage.getItem('orbx_user_token');
+if (!currentUser || !currentUserToken) window.location.href = 'index.html';
+
+function authHeaders(extra){
+  return Object.assign({ Authorization: 'Bearer ' + (currentUserToken || '') }, extra || {});
+}
 
 document.getElementById('dashUsername').textContent = currentUser || '';
 const greetEl = document.getElementById('greetUser');
@@ -185,7 +190,7 @@ function notifTimeAgo(iso){
 
 async function loadNotifications(){
   try{
-    const res  = await fetch('/api/notifications/'+encodeURIComponent(currentUser));
+    const res  = await fetch('/api/notifications/'+encodeURIComponent(currentUser), { headers: authHeaders() });
     const data = await res.json();
     const { notifications, unreadCount } = data;
 
@@ -205,8 +210,8 @@ async function loadNotifications(){
       <div class="notif-item ${n.read ? '' : 'unread'}" data-id="${n.id}">
         <div class="notif-item-icon">${NOTIF_ICONS[n.type] || NOTIF_ICONS.announcement}</div>
         <div class="notif-item-body">
-          <div class="notif-item-title">${n.title}</div>
-          <div class="notif-item-msg">${n.message}</div>
+          <div class="notif-item-title">${escapeHtml(n.title)}</div>
+          <div class="notif-item-msg">${escapeHtml(n.message)}</div>
           <div class="notif-item-time">${notifTimeAgo(n.createdAt)}</div>
         </div>
         ${!n.read ? '<div class="notif-item-dot"></div>' : ''}
@@ -222,7 +227,7 @@ async function markNotificationRead(notificationId){
   try{
     await fetch('/api/notifications/'+encodeURIComponent(currentUser)+'/read', {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(notificationId ? { notificationId } : {})
     });
   } catch(e){}
@@ -267,30 +272,27 @@ setInterval(loadNotifications, 20000);
 // ── Wallet ────────────────────────────────────────────────────
 async function loadWallet(){
   try{
-    const walletRes  = await fetch('/api/wallet/'+encodeURIComponent(currentUser));
+    const walletRes  = await fetch('/api/wallet/'+encodeURIComponent(currentUser), { headers: authHeaders() });
     const walletData = await walletRes.json();
     const incomeEl    = document.getElementById('walletIncome');
     const withdrawnEl = document.getElementById('walletWithdrawn');
     if(incomeEl)    incomeEl.innerHTML    = peso(walletData.income);
     if(withdrawnEl) withdrawnEl.innerHTML = peso(walletData.withdrawn);
-    const dailyRes   = await fetch('/api/daily-rewards/'+encodeURIComponent(currentUser));
+    const dailyRes   = await fetch('/api/daily-rewards/'+encodeURIComponent(currentUser), { headers: authHeaders() });
     const dailyLogs  = await dailyRes.json();
     const dailyTotal = dailyLogs.reduce((s,l)=>s+(l.totalCredited||0),0);
     const dailyEl = document.getElementById('walletDailyReward');
     if(dailyEl) dailyEl.innerHTML = peso(dailyTotal);
-    const taskLogsRes = await fetch('/api/task-logs/'+encodeURIComponent(currentUser));
+    const taskLogsRes = await fetch('/api/task-logs/'+encodeURIComponent(currentUser), { headers: authHeaders() });
 const taskLogs     = await taskLogsRes.json();
 const taskLogsTotal = taskLogs.reduce((s,l)=>s+(l.reward||0),0);
 
 let surveyTotal = 0;
 try{
-  const surveyRes  = await fetch('/api/survey/'+encodeURIComponent(currentUser));
+  const surveyRes  = await fetch('/api/survey/'+encodeURIComponent(currentUser), { headers: authHeaders() });
   const surveyData = await surveyRes.json();
   surveyTotal = surveyData.totalEarned || 0;
 } catch(e){}
-
-const taskEl = document.getElementById('walletTaskReward');
-if(taskEl) taskEl.innerHTML = peso(taskLogsTotal + surveyTotal);
   } catch(e){}
 }
 loadWallet();
@@ -315,7 +317,7 @@ async function renderWithdrawBody(){
   clearCycleTimer();
   let elig;
   try{
-    const res = await fetch('/api/withdraw/eligibility/'+encodeURIComponent(currentUser));
+    const res = await fetch('/api/withdraw/eligibility/'+encodeURIComponent(currentUser), { headers: authHeaders() });
     elig = await res.json();
   } catch(e){
     body.innerHTML = `<p style="color:var(--muted);text-align:center;padding:24px 0;">Hindi makonekta sa server.</p>`;
@@ -421,7 +423,7 @@ async function renderWithdrawBody(){
       if(!accountNumber||!accountName){ errEl.textContent='Punan ang account number at account name.'; errEl.style.display='block'; return; }
       submitBtn.disabled=true; submitBtn.textContent='Submitting...';
       try{
-        const res  = await fetch('/api/withdraw',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:currentUser,amount,accountNumber,accountName,method,notes})});
+        const res  = await fetch('/api/withdraw',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({username:currentUser,amount,accountNumber,accountName,method,notes})});
         const data = await res.json();
         if(!res.ok){ errEl.textContent=data.error||'There was a problem submitting your request.'; errEl.style.display='block'; submitBtn.disabled=false; submitBtn.textContent='Submit Withdrawal Request'; return; }
         document.getElementById('withdrawBody').innerHTML=`<div class="order-success"><div class="order-success-badge">Submitted</div><h3>Withdrawal Requested</h3><p>Your request is now pending verification. Processing typically takes 1–2 hours. Thank you, ${currentUser}.</p></div>`;
@@ -443,7 +445,7 @@ async function loadOrdersSummary(){
   const bar     = document.getElementById('swOrdersStrip');
   const osbLeft = document.getElementById('osbLeft');
   try{
-    const res    = await fetch('/api/orders/mine/'+encodeURIComponent(currentUser));
+    const res    = await fetch('/api/orders/mine/'+encodeURIComponent(currentUser), { headers: authHeaders() });
     const orders = await res.json();
     if(!orders.length){ if(bar) bar.style.display='none'; return; }
     const approved = orders.filter(o=>o.status==='approved');
@@ -474,8 +476,8 @@ async function renderAllOrders(){
   allOrdersBody.innerHTML='<p style="color:var(--muted);text-align:center;padding:24px 0;">Naglo-load...</p>';
   try{
     const [ordersRes, dailyRes] = await Promise.all([
-      fetch('/api/orders/mine/'+encodeURIComponent(currentUser)),
-      fetch('/api/daily-rewards/'+encodeURIComponent(currentUser))
+      fetch('/api/orders/mine/'+encodeURIComponent(currentUser), { headers: authHeaders() }),
+      fetch('/api/daily-rewards/'+encodeURIComponent(currentUser), { headers: authHeaders() })
     ]);
     const orders    = await ordersRes.json();
     const dailyLogs = await dailyRes.json();
@@ -522,7 +524,7 @@ async function renderAllOrders(){
         html+=`<div class="flagged-order-card">
           <div class="flagged-order-header"><span class="flagged-badge">${ICON_WARN} NOT APPROVED</span><span class="flagged-tier">${o.tier}</span></div>
           <div class="flagged-price">&#8369;${Number(o.price).toLocaleString()}</div>
-          <div class="flagged-reason"><div class="flagged-reason-label">${ICON_CLIP} Dahilan:</div><div class="flagged-reason-msg">${o.feedback||'Ang iyong order ay hindi na-approve.'}</div></div>
+          <div class="flagged-reason"><div class="flagged-reason-label">${ICON_CLIP} Dahilan:</div><div class="flagged-reason-msg">${escapeHtml(o.feedback||'Ang iyong order ay hindi na-approve.')}</div></div>
           <div class="flagged-notice">${ICON_LOCK} Hindi na maaprubahan ang order na ito. Makipag-ugnayan sa Customer Service para sa tulong.</div>
         </div>`;
       });
@@ -657,7 +659,7 @@ function renderGcashDetails(product){
     fd.append('price',product.price);
     fd.append('method','GCash');
     try{
-      const res  = await fetch('/api/orders',{method:'POST',body:fd});
+      const res  = await fetch('/api/orders',{method:'POST', headers: authHeaders(), body:fd});
       const data = await res.json();
       if(!res.ok){ errEl.textContent=data.error||'May problema sa pag-submit.'; errEl.style.display='block'; submitBtn.disabled=false; submitBtn.textContent='Submit Order'; return; }
       orderBody.innerHTML=`<div class="order-success"><div class="order-success-badge">Submitted</div><h3>Order Received</h3><p>Hihintayin na lang namin ang verification. Salamat, ${currentUser}.</p></div>`;
@@ -755,7 +757,7 @@ if(taskHubOverlay) taskHubOverlay.addEventListener('click', e => {
 async function refreshSurveyTaskPreview(){
   if(!surveyTaskDesc) return;
   try{
-    const res  = await fetch('/api/survey/'+encodeURIComponent(currentUser));
+    const res  = await fetch('/api/survey/'+encodeURIComponent(currentUser), { headers: authHeaders() });
     const data = await res.json();
     const remaining = data.totalQuestions - data.answeredCount;
     if(remaining <= 0){
@@ -786,7 +788,7 @@ async function loadSurvey(){
   if(!surveyBody) return;
   surveyBody.innerHTML = `<p style="color:var(--muted);text-align:center;padding:24px 0;">Loading...</p>`;
   try{
-    const res  = await fetch('/api/survey/'+encodeURIComponent(currentUser));
+    const res  = await fetch('/api/survey/'+encodeURIComponent(currentUser), { headers: authHeaders() });
     const data = await res.json();
     surveyRunningState = {
       answeredCount:   data.answeredCount,
@@ -904,7 +906,7 @@ function bindQuestionCard(q){
     try{
       const res = await fetch(`/api/survey/${encodeURIComponent(currentUser)}/answer`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ questionId: q.id, selectedAnswer: selected })
       });
       const result = await res.json();
@@ -966,7 +968,7 @@ async function openDailyRewardModal(){
   dailyRewardOverlay.classList.add('show');
   dailyRewardBody.innerHTML = `<p style="color:var(--muted);text-align:center;padding:24px 0;">Loading...</p>`;
   try{
-    const res  = await fetch('/api/daily-rewards/'+encodeURIComponent(currentUser));
+    const res  = await fetch('/api/daily-rewards/'+encodeURIComponent(currentUser), { headers: authHeaders() });
     const logs = await res.json();
     renderDailyRewardBody(logs);
   } catch(e){
@@ -1099,6 +1101,7 @@ function renderLeaderboard(data){
 // ══════════════════════════════════════════════════════════════
 let supportPollInterval = null;
 let supportLastCount = 0;
+let supportSelectedFile = null;
 
 function escapeHtmlChat(str){
   const div = document.createElement('div');
@@ -1111,7 +1114,7 @@ function supportTimeFmt(iso){
 
 async function loadSupportChat(scrollDown){
   try{
-    const res  = await fetch('/api/support/'+encodeURIComponent(currentUser));
+    const res  = await fetch('/api/support/'+encodeURIComponent(currentUser), { headers: authHeaders() });
     const data = await res.json();
     const list = document.getElementById('supportMsgList');
     if(!data.messages.length){
@@ -1119,7 +1122,8 @@ async function loadSupportChat(scrollDown){
     } else {
       list.innerHTML = data.messages.map(m => `
         <div class="support-bubble support-bubble--${m.senderType}">
-          <div>${escapeHtmlChat(m.message)}</div>
+          ${m.attachmentUrl ? `<img class="support-bubble-img" src="${m.attachmentUrl}" data-full="${m.attachmentUrl}" alt="attachment">` : ''}
+          ${m.message ? `<div>${escapeHtmlChat(m.message)}</div>` : ''}
           <div class="support-bubble-time">${m.senderType === 'admin' ? 'Admin · ' : ''}${supportTimeFmt(m.createdAt)}</div>
         </div>`).join('');
     }
@@ -1127,7 +1131,13 @@ async function loadSupportChat(scrollDown){
       list.scrollTop = list.scrollHeight;
     }
     supportLastCount = data.messages.length;
-    fetch('/api/support/'+encodeURIComponent(currentUser)+'/read', { method:'PATCH' });
+    fetch('/api/support/'+encodeURIComponent(currentUser)+'/read', { method:'PATCH', headers: authHeaders() });
+    list.querySelectorAll('.support-bubble-img').forEach(img => {
+      img.addEventListener('click', () => {
+        document.getElementById('chatImgFull').src = img.dataset.full;
+        document.getElementById('chatImgOverlay').classList.add('show');
+      });
+    });
   } catch(e){}
 }
 
@@ -1154,17 +1164,49 @@ document.getElementById('supportChatOverlay').addEventListener('click', e => {
   if(e.target.id === 'supportChatOverlay') closeSupportChat();
 });
 
+// ── Attach photo ──────────────────────────────────────────────
+const supportAttachBtn     = document.getElementById('supportAttachBtn');
+const supportAttachInput   = document.getElementById('supportAttachInput');
+const supportAttachPreview = document.getElementById('supportAttachPreview');
+
+if(supportAttachBtn) supportAttachBtn.addEventListener('click', () => supportAttachInput.click());
+if(supportAttachInput) supportAttachInput.addEventListener('change', () => {
+  const file = supportAttachInput.files[0];
+  if(!file) return;
+  supportSelectedFile = file;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    supportAttachPreview.innerHTML = `
+      <img src="${ev.target.result}" alt="preview">
+      <button type="button" id="supportAttachRemove">&times;</button>`;
+    supportAttachPreview.style.display = 'flex';
+    document.getElementById('supportAttachRemove').addEventListener('click', () => {
+      supportSelectedFile = null;
+      supportAttachInput.value = '';
+      supportAttachPreview.style.display = 'none';
+      supportAttachPreview.innerHTML = '';
+    });
+  };
+  reader.readAsDataURL(file);
+});
+
 const supportInput   = document.getElementById('supportInput');
 const supportSendBtn = document.getElementById('supportSendBtn');
 async function sendSupportMessage(){
   const text = supportInput.value.trim();
-  if(!text) return;
+  if(!text && !supportSelectedFile) return;
   supportSendBtn.disabled = true;
   supportInput.value = '';
+  const fileToSend = supportSelectedFile;
+  supportSelectedFile = null;
+  supportAttachPreview.style.display = 'none';
+  supportAttachPreview.innerHTML = '';
+  supportAttachInput.value = '';
   try{
-    await fetch('/api/support/'+encodeURIComponent(currentUser)+'/message', {
-      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ message: text })
-    });
+    const fd = new FormData();
+    fd.append('message', text);
+    if(fileToSend) fd.append('attachment', fileToSend);
+    await fetch('/api/support/'+encodeURIComponent(currentUser)+'/message', { method:'POST', headers: authHeaders(), body: fd });
     await loadSupportChat(true);
   } catch(e){ alert('Hindi makonekta sa server.'); }
   supportSendBtn.disabled = false;
@@ -1173,13 +1215,5 @@ supportSendBtn.addEventListener('click', sendSupportMessage);
 supportInput.addEventListener('keydown', e => {
   if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendSupportMessage(); }
 });
-
-// Nav dot indicator — checangi kasabay ng notifications
-async function checkSupportUnread(){
-  try{
-    const res  = await fetch('/api/support/'+encodeURIComponent(currentUser));
-    const data = await res.json();
-    const unreadFromAdmin = data.messages.filter(m => m.senderType === 'admin').length; // simple presence check lang; read state is server-side
-    // Simpler: gamitin na lang ang notifications system mo (type: support_reply) para sa badge — auto na 'yan sa bell.
-  } catch(e){}
-}
+document.getElementById('chatImgClose').addEventListener('click', () => document.getElementById('chatImgOverlay').classList.remove('show'));
+document.getElementById('chatImgOverlay').addEventListener('click', e => { if(e.target.id === 'chatImgOverlay') e.currentTarget.classList.remove('show'); });

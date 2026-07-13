@@ -332,9 +332,16 @@
 #tab-users .data-table { overflow-x: auto; }
 #tab-users .data-table-head,
 #tab-users .data-table-row {
-  grid-template-columns: 1.6fr 1.4fr 1fr 0.9fr 0.9fr 1fr;
+  grid-template-columns: 1.3fr 1.3fr 1fr 1fr 0.9fr 0.9fr 1fr;
   gap: 10px;
-  min-width: 620px;
+  min-width: 720px;
+}
+.dt-balance {
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 800;
+  font-size: 12.5px;
+  color: #7CFFB2;
+  white-space: nowrap;
 }
 #tab-users .dt-phone { white-space: nowrap; }
 #tab-users .block-btn,
@@ -357,9 +364,8 @@
 
 @media (max-width: 768px) {
   #tab-users .data-table-head,
-  #tab-users .data-table-row { min-width: 560px; }
+  #tab-users .data-table-row { min-width: 720px; }
 }
-
 /* ── Add admin card ── */
 .add-admin-card { margin-top: 24px; background: var(--card); border: 1px solid var(--border); border-radius: 18px; padding: 24px; }
 .add-admin-title { font-size: 14px; font-weight: 700; color: var(--text); margin: 0 0 18px; }

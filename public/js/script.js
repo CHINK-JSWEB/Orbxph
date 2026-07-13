@@ -228,7 +228,8 @@ document.getElementById('signinForm').addEventListener('submit', async (e) => {
     if(!res.ok){
       return showError('signinForm', data.error || 'Unable to sign in.');
     }
-    localStorage.setItem('orbx_user', data.username);
+localStorage.setItem('orbx_user', data.username);
+    localStorage.setItem('orbx_user_token', data.token);
     window.location.href = 'welcome.html';
   } catch(err){
     showError('signinForm', 'Unable to connect to the server. Please try again shortly.');

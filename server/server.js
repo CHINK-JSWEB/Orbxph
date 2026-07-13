@@ -5,6 +5,7 @@ const path = require('path');
 const crypto = require('crypto');
 const multer = require('multer');
 const rateLimit = require('express-rate-limit');
+const { fileTypeFromBuffer } = require('file-type');
 const helmet = require('helmet');
 const cors = require('cors');
 
@@ -22,7 +23,9 @@ app.use(helmet({
 
 // ── CORS — tanggapin lang requests mula sa sariling domain ─────
 const ALLOWED_ORIGINS = [
-  'https://orbxph.onrender.com',
+  'https://orbitxph.asia',
+  'https://www.orbitxph.asia',
+  'https://orbxph.onrender.com', // panatilihin muna habang nagtatransisyon
   'http://localhost:3000', // para sa local testing
 ];
 app.use(cors({
@@ -80,7 +83,7 @@ const UPLOADS_DIR       = path.join(__dirname, 'uploads');
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
 app.use(express.json());
-app.use(express.static(path.join(__dirname, '..')));
+app.use(express.static(path.join(__dirname, '..', 'public')));
 app.use('/uploads', express.static(UPLOADS_DIR));
 app.use('/api/', generalLimiter);
 
@@ -198,7 +201,7 @@ function mapTransactionRow(t) {
   };
 }
 
-app.get('/api/transactions/:username', async (req, res) => {
+app.get('/api/transactions/:username', requireUser, async (req, res) => {
   const limit  = Math.min(parseInt(req.query.limit, 10) || 30, 200);
   const offset = parseInt(req.query.offset, 10) || 0;
   const type   = req.query.type;
@@ -542,6 +545,29 @@ async function getUnreadCount(username) {
 
 // ── Admin (PostgreSQL) ────────────────────────────────────────
 const adminTokens = new Map();
+const userTokens = new Map(); // dito nakatago ang mga valid na "pass" ng users
+const TOKEN_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
+
+function requireUser(req, res, next) {
+  const header = req.headers.authorization || '';
+  const token  = header.startsWith('Bearer ') ? header.slice(7) : null;
+  if (!token || !userTokens.has(token))
+    return res.status(401).json({ error: 'Hindi naka-login. Mag-login muli.' });
+
+  const session = userTokens.get(token);
+  if (Date.now() - session.createdAt > TOKEN_TTL_MS) {
+    userTokens.delete(token);
+    return res.status(401).json({ error: 'Nag-expire na ang session. Mag-login muli.' });
+  }
+
+  const paramUsername = req.params.username || (req.body && req.body.username);
+
+  if (paramUsername && paramUsername.toLowerCase() !== session.username.toLowerCase())
+    return res.status(403).json({ error: 'Bawal i-access ang account ng iba.' });
+
+  req.authUser = session.username;
+  next();
+}
 
 async function getAdminCount() {
   const r = await pool.query('SELECT COUNT(*) FROM admins');
@@ -556,15 +582,20 @@ async function getAllAdmins() {
   return r.rows;
 }
 
+
 function requireAdmin(req, res, next) {
   const header = req.headers.authorization || '';
   const token  = header.startsWith('Bearer ') ? header.slice(7) : null;
   if (!token || !adminTokens.has(token))
     return res.status(401).json({ error: 'Hindi naka-login bilang admin.' });
-  req.adminUser = adminTokens.get(token);
+  const session = adminTokens.get(token);
+  if (Date.now() - session.createdAt > TOKEN_TTL_MS) {
+    adminTokens.delete(token);
+    return res.status(401).json({ error: 'Nag-expire na ang admin session. Mag-login muli.' });
+  }
+  req.adminUser = session;
   next();
 }
-
 // ═══════════════════════════════════════════════════════════════
 //  ROUTES
 // ═══════════════════════════════════════════════════════════════
@@ -589,6 +620,9 @@ app.post('/api/admin/setup', authLimiter, async (req, res) => {
   res.json({ success: true });
 });
 
+const ADMIN_MAX_LOGIN_ATTEMPTS = 5;
+const ADMIN_LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+
 app.post('/api/admin/login', authLimiter, async (req, res) => {
   const { username, password } = req.body || {};
   const count = await getAdminCount();
@@ -596,10 +630,39 @@ app.post('/api/admin/login', authLimiter, async (req, res) => {
     return res.status(404).json({ error: 'Wala pang admin account.' });
   const admin = await findAdminByUsername(username || '');
   if (!admin) return res.status(401).json({ error: 'Maling username o password.' });
+
+  if (admin.locked_until && new Date(admin.locked_until) > new Date()) {
+    const minutesLeft = Math.ceil((new Date(admin.locked_until) - new Date()) / 60000);
+    return res.status(403).json({
+      error: `Naka-lock muna ang admin account dahil sa sobrang failed attempts. Subukan ulit pagkalipas ng ${minutesLeft} minuto.`
+    });
+  }
+
   const match = await bcrypt.compare(password, admin.password_hash);
-  if (!match) return res.status(401).json({ error: 'Maling username o password.' });
+  if (!match) {
+    const newAttempts = (admin.failed_login_attempts || 0) + 1;
+    if (newAttempts >= ADMIN_MAX_LOGIN_ATTEMPTS) {
+      const lockUntil = new Date(Date.now() + ADMIN_LOCKOUT_DURATION_MS);
+      await pool.query(
+        'UPDATE admins SET failed_login_attempts = $1, locked_until = $2 WHERE username = $3',
+        [newAttempts, lockUntil, admin.username]
+      );
+      return res.status(403).json({
+        error: `Naka-lock ang admin account dahil sa sobrang maling password. Subukan ulit pagkalipas ng 15 minuto.`
+      });
+    } else {
+      await pool.query('UPDATE admins SET failed_login_attempts = $1 WHERE username = $2', [newAttempts, admin.username]);
+      const attemptsLeft = ADMIN_MAX_LOGIN_ATTEMPTS - newAttempts;
+      return res.status(401).json({ error: `Maling username o password. ${attemptsLeft} attempt(s) na lang bago ma-lock ang account.` });
+    }
+  }
+
+  if (admin.failed_login_attempts > 0 || admin.locked_until) {
+    await pool.query('UPDATE admins SET failed_login_attempts = 0, locked_until = NULL WHERE username = $1', [admin.username]);
+  }
+
   const token = crypto.randomBytes(24).toString('hex');
-  adminTokens.set(token, { username: admin.username });
+  adminTokens.set(token, { username: admin.username, createdAt: Date.now() });
   res.json({ success: true, token, username: admin.username });
 });
 
@@ -617,12 +680,20 @@ app.get('/api/admin/list', requireAdmin, async (req, res) => {
 
 app.get('/api/admin/users', requireAdmin, async (req, res) => {
   const users = await getAllUsers();
-  res.json(users.map(u => ({
-    username:  u.username,
-    phone:     u.phone,
-    createdAt: u.created_at,
-    blocked:   !!u.blocked,
-  })));
+  const withBalance = await Promise.all(users.map(async (u) => {
+    const wallet  = await getWallet(u.username);
+    const balance = parseFloat((wallet.income - wallet.withdrawn).toFixed(2));
+    return {
+      username:  u.username,
+      phone:     u.phone,
+      createdAt: u.created_at,
+      blocked:   !!u.blocked,
+      income:    wallet.income,
+      withdrawn: wallet.withdrawn,
+      balance:   balance,
+    };
+  }));
+  res.json(withBalance);
 });
 
 app.patch('/api/admin/users/:username/block', requireAdmin, async (req, res) => {
@@ -762,7 +833,10 @@ app.post('/api/login', authLimiter, async (req, res) => {
     await pool.query('UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE username = $1', [user.username]);
   }
 
-  res.json({ success: true, username: user.username, phone: user.phone });
+  const token = crypto.randomBytes(24).toString('hex');
+  userTokens.set(token, { username: user.username, createdAt: Date.now() });
+
+  res.json({ success: true, username: user.username, phone: user.phone, token });
 });
 
 // ── Orders ────────────────────────────────────────────────────
@@ -775,6 +849,13 @@ const upload = multer({
   limits: { fileSize: 8 * 1024 * 1024 },
   fileFilter: (req, file, cb) => cb(null, file.mimetype.startsWith('image/'))
 });
+
+// Tunay na pag-verify ng file gamit ang magic bytes — hindi lang basta client-supplied mimetype
+async function isRealImage(buffer) {
+  const type = await fileTypeFromBuffer(buffer);
+  if (!type) return false;
+  return type.mime.startsWith('image/');
+}
 
 async function uploadScreenshotToSupabase(file) {
   const ext = path.extname(file.originalname) || '.jpg';
@@ -797,9 +878,24 @@ async function deleteScreenshotFromSupabase(screenshotUrl) {
   }
 }
 
-app.post('/api/orders', submitLimiter, upload.single('screenshot'), async (req, res) => {
+const VALID_PACKAGES = {
+  'Ordinary': 200,
+  'Regular':  500,
+  'Premium':  700,
+  'Deluxe':   1000,
+  'Elite':    1500,
+};
+
+app.post('/api/orders', submitLimiter, upload.single('screenshot'), requireUser, async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Walang na-attach na screenshot.' });
-  const { username, tier, price, method } = req.body || {};
+  if (!(await isRealImage(req.file.buffer)))
+    return res.status(400).json({ error: 'Invalid na file. Larawan lang (JPG/PNG) ang tinatanggap.' });
+  const { username, tier, method } = req.body || {};
+
+  if (!VALID_PACKAGES.hasOwnProperty(tier))
+    return res.status(400).json({ error: 'Invalid na package/tier.' });
+  const price = VALID_PACKAGES[tier];
+
   const id = Date.now().toString(36);
   let screenshot;
   try {
@@ -818,7 +914,7 @@ app.post('/api/orders', submitLimiter, upload.single('screenshot'), async (req, 
 });
 
 // CLIENT: My Orders — kasama ang archived
-app.get('/api/orders/mine/:username', async (req, res) => {
+app.get('/api/orders/mine/:username', requireUser, async (req, res) => {
   const active = await getOrdersByUsername(req.params.username);
   const archived = await getArchivedOrdersByUsername(req.params.username);
   const combined = [...active, ...archived]
@@ -1012,7 +1108,7 @@ app.delete('/api/orders/:id/screenshot', requireAdmin, async (req, res) => {
 
 
 // ── Wallet API ────────────────────────────────────────────────
-app.get('/api/wallet/:username', async (req, res) => {
+app.get('/api/wallet/:username', requireUser, async (req, res) => {
   const w = await getWallet(req.params.username);
   res.json(w);
 });
@@ -1058,7 +1154,7 @@ app.get('/api/leaderboard', async (req, res) => {
   });
 });
 
-app.get('/api/referral/:username', async (req, res) => {
+app.get('/api/referral/:username', requireUser, async (req, res) => {
   const entry = await getOrCreateReferral(req.params.username);
   res.json(entry);
 });
@@ -1082,7 +1178,7 @@ app.post('/api/admin/referrals/:username/regenerate', requireAdmin, async (req, 
 });
 
 // CLIENT: My Team (3-level downline)
-app.get('/api/referral/:username/team', async (req, res) => {
+app.get('/api/referral/:username/team', requireUser, async (req, res) => {
   const username = req.params.username;
 
   async function getDirectInvitees(uname) {
@@ -1117,7 +1213,7 @@ app.get('/api/referral/:username/team', async (req, res) => {
   });
 });
 // ── Daily Rewards API ─────────────────────────────────────────
-app.get('/api/daily-rewards/:username', async (req, res) => {
+app.get('/api/daily-rewards/:username', requireUser, async (req, res) => {
   const r = await pool.query(
     'SELECT * FROM daily_logs WHERE LOWER(username) = LOWER($1)',
     [req.params.username]
@@ -1153,19 +1249,19 @@ app.get('/api/admin/daily-rewards', requireAdmin, async (req, res) => {
 });
 
 // ── Task Rewards API ──────────────────────────────────────────
-app.get('/api/task-rewards/:username', async (req, res) => {
+app.get('/api/task-rewards/:username', requireUser, async (req, res) => {
   const myCompleted = await getCompletedTaskIds(req.params.username);
   const allTasks = await getAllTasks();
   const available = allTasks.filter(t => t.active && !myCompleted.includes(t.id));
   res.json(available);
 });
 
-app.get('/api/task-logs/:username', async (req, res) => {
+app.get('/api/task-logs/:username', requireUser, async (req, res) => {
   const logs = await getTaskLogsByUsername(req.params.username);
   res.json(logs);
 });
 
-app.post('/api/task-rewards/:username/claim/:taskId', async (req, res) => {
+app.post('/api/task-rewards/:username/claim/:taskId', requireUser, async (req, res) => {
   const username = req.params.username;
   const task = await findTaskById(req.params.taskId);
   if (!task || !task.active)
@@ -1234,7 +1330,7 @@ app.delete('/api/admin/tasks/:id', requireAdmin, async (req, res) => {
 });
 
 // ── Notifications API ──────────────────────────────────────────
-app.get('/api/notifications/:username', async (req, res) => {
+app.get('/api/notifications/:username', requireUser, async (req, res) => {
   const notifications = await getNotifications(req.params.username);
   const unreadCount = await getUnreadCount(req.params.username);
   res.json({
@@ -1250,7 +1346,7 @@ app.get('/api/notifications/:username', async (req, res) => {
   });
 });
 
-app.patch('/api/notifications/:username/read', async (req, res) => {
+app.patch('/api/notifications/:username/read', requireUser, async (req, res) => {
   const { notificationId } = req.body || {};
   if (notificationId) {
     await pool.query(
@@ -1266,7 +1362,7 @@ app.patch('/api/notifications/:username/read', async (req, res) => {
   res.json({ success: true });
 });
 // ── Survey API ──────────────────────────────────────────────────
-app.get('/api/survey/:username', async (req, res) => {
+app.get('/api/survey/:username', requireUser, async (req, res) => {
   const username = req.params.username;
   const questions = await fetchAndCacheTodaysQuestions();
 
@@ -1298,7 +1394,7 @@ app.get('/api/survey/:username', async (req, res) => {
   });
 });
 
-app.post('/api/survey/:username/answer', async (req, res) => {
+app.post('/api/survey/:username/answer', requireUser, async (req, res) => {
   const username = req.params.username;
   const { questionId, selectedAnswer } = req.body || {};
   if (!questionId || !selectedAnswer)
@@ -1356,12 +1452,12 @@ app.post('/api/admin/broadcast', requireAdmin, async (req, res) => {
 // ── Withdrawal API ────────────────────────────────────────────
 
 // CLIENT: eligibility check
-app.get('/api/withdraw/eligibility/:username', async (req, res) => {
+app.get('/api/withdraw/eligibility/:username', requireUser, async (req, res) => {
   res.json(await getWithdrawEligibility(req.params.username));
 });
 
 // CLIENT: submit withdrawal request
-app.post('/api/withdraw', submitLimiter, async (req, res) => {
+app.post('/api/withdraw', submitLimiter, requireUser, async (req, res) => {
   const { username, amount, accountNumber, accountName, method, notes } = req.body || {};
 
   if (!username || !accountNumber || !accountName)
@@ -1411,7 +1507,7 @@ app.post('/api/withdraw', submitLimiter, async (req, res) => {
 });
 
 // CLIENT: own withdrawal history
-app.get('/api/withdraw/mine/:username', async (req, res) => {
+app.get('/api/withdraw/mine/:username', requireUser, async (req, res) => {
   const mine = await getWithdrawalsByUsername(req.params.username);
   res.json(mine);
 });
@@ -1572,32 +1668,56 @@ async function getOrCreateSupportConversation(username) {
   return r.rows[0];
 }
 function mapSupportMsg(m) {
-  return { id: m.id, senderType: m.sender_type, senderName: m.sender_name, message: m.message, createdAt: m.created_at };
+  return { id: m.id, senderType: m.sender_type, senderName: m.sender_name, message: m.message, attachmentUrl: m.attachment_url, createdAt: m.created_at };
+}
+
+async function uploadSupportAttachment(file) {
+  const ext = path.extname(file.originalname) || '.jpg';
+  const filename = `support-${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`;
+  const { error } = await supabase.storage
+    .from(SCREENSHOTS_BUCKET)
+    .upload(filename, file.buffer, { contentType: file.mimetype });
+  if (error) throw error;
+  const { data } = supabase.storage.from(SCREENSHOTS_BUCKET).getPublicUrl(filename);
+  return data.publicUrl;
 }
 
 // CLIENT: get/create conversation + messages
-app.get('/api/support/:username', async (req, res) => {
+app.get('/api/support/:username', requireUser, async (req, res) => {
   const convo = await getOrCreateSupportConversation(req.params.username);
   const msgs = await pool.query('SELECT * FROM support_messages WHERE conversation_id = $1 ORDER BY created_at ASC', [convo.id]);
   res.json({ conversationId: convo.id, status: convo.status, messages: msgs.rows.map(mapSupportMsg) });
 });
 
-// CLIENT: send message
-app.post('/api/support/:username/message', submitLimiter, async (req, res) => {
-  const { message } = req.body || {};
-  if (!message || !message.trim()) return res.status(400).json({ error: 'Walang laman ang mensahe.' });
+// CLIENT: send message (may kasamang optional attachment)
+app.post('/api/support/:username/message', submitLimiter, upload.single('attachment'), requireUser, async (req, res) => {
+  const message = (req.body.message || '').trim();
+  if (!message && !req.file) return res.status(400).json({ error: 'Walang laman ang mensahe.' });
+
+  if (req.file && !(await isRealImage(req.file.buffer)))
+    return res.status(400).json({ error: 'Invalid na file. Larawan lang (JPG/PNG) ang tinatanggap.' });
+
+  let attachmentUrl = null;
+  if (req.file) {
+    try { attachmentUrl = await uploadSupportAttachment(req.file); }
+    catch (err) {
+      console.error('[SUPPORT ATTACHMENT UPLOAD ERROR]', err);
+      return res.status(500).json({ error: 'Hindi na-upload ang attachment. Subukan ulit.' });
+    }
+  }
+
   const convo = await getOrCreateSupportConversation(req.params.username);
   await pool.query(
-    `INSERT INTO support_messages (conversation_id, sender_type, sender_name, message, read_by_user, read_by_admin)
-     VALUES ($1, 'user', $2, $3, true, false)`,
-    [convo.id, req.params.username, message.trim()]
+    `INSERT INTO support_messages (conversation_id, sender_type, sender_name, message, attachment_url, read_by_user, read_by_admin)
+     VALUES ($1, 'user', $2, $3, $4, true, false)`,
+    [convo.id, req.params.username, message, attachmentUrl]
   );
   await pool.query(`UPDATE support_conversations SET status = 'open', updated_at = NOW() WHERE id = $1`, [convo.id]);
   res.json({ success: true });
 });
 
 // CLIENT: mark admin replies as read
-app.patch('/api/support/:username/read', async (req, res) => {
+app.patch('/api/support/:username/read', requireUser, async (req, res) => {
   const convo = await getOrCreateSupportConversation(req.params.username);
   await pool.query(`UPDATE support_messages SET read_by_user = true WHERE conversation_id = $1 AND sender_type = 'admin'`, [convo.id]);
   res.json({ success: true });
@@ -1626,21 +1746,34 @@ app.get('/api/admin/support/:id/messages', requireAdmin, async (req, res) => {
   res.json(msgs.rows.map(mapSupportMsg));
 });
 
-// ADMIN: reply
-app.post('/api/admin/support/:id/message', requireAdmin, async (req, res) => {
-  const { message } = req.body || {};
-  if (!message || !message.trim()) return res.status(400).json({ error: 'Message required.' });
+// ADMIN: reply (may kasamang optional attachment)
+app.post('/api/admin/support/:id/message', requireAdmin, upload.single('attachment'), async (req, res) => {
+  const message = (req.body.message || '').trim();
+  if (!message && !req.file) return res.status(400).json({ error: 'Message required.' });
+
+  if (req.file && !(await isRealImage(req.file.buffer)))
+    return res.status(400).json({ error: 'Invalid na file. Larawan lang (JPG/PNG) ang tinatanggap.' });
+
+  let attachmentUrl = null;
+  if (req.file) {
+    try { attachmentUrl = await uploadSupportAttachment(req.file); }
+    catch (err) {
+      console.error('[SUPPORT ATTACHMENT UPLOAD ERROR]', err);
+      return res.status(500).json({ error: 'Hindi na-upload ang attachment. Subukan ulit.' });
+    }
+  }
+
   const convoR = await pool.query('SELECT * FROM support_conversations WHERE id = $1', [req.params.id]);
   const convo = convoR.rows[0];
   if (!convo) return res.status(404).json({ error: 'Conversation not found.' });
   await pool.query(
-    `INSERT INTO support_messages (conversation_id, sender_type, sender_name, message, read_by_user, read_by_admin)
-     VALUES ($1, 'admin', $2, $3, false, true)`,
-    [convo.id, req.adminUser.username, message.trim()]
+    `INSERT INTO support_messages (conversation_id, sender_type, sender_name, message, attachment_url, read_by_user, read_by_admin)
+     VALUES ($1, 'admin', $2, $3, $4, false, true)`,
+    [convo.id, req.adminUser.username, message, attachmentUrl]
   );
   await pool.query(`UPDATE support_conversations SET status = 'open', updated_at = NOW() WHERE id = $1`, [convo.id]);
   await createNotification(convo.username, 'support_reply', 'New Support Message',
-    `Sumagot ang admin: "${message.trim().slice(0, 80)}"`);
+    message ? `Sumagot ang admin: "${message.slice(0, 80)}"` : 'May bagong attachment mula sa admin.');
   res.json({ success: true });
 });
 
