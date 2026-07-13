@@ -1,41 +1,5 @@
-// ── Secret Gate ───────────────────────────────────────────────
-const SECRET_CODE    = 'JULY271914';
-const MAX_TRIES      = 3;
-const gateWrap       = document.getElementById('gateWrap');
-const gateForm       = document.getElementById('gateForm');
-const gateError      = document.getElementById('gateError');
-const gateAttempts   = document.getElementById('gateAttempts');
-const gateBlockedMsg = document.getElementById('gateBlockedMsg');
-
-function isBlocked(){ return localStorage.getItem('orbx_gate_blocked') === '1'; }
-function getTries(){ return parseInt(localStorage.getItem('orbx_gate_tries') || '0'); }
-function setTries(n){ localStorage.setItem('orbx_gate_tries', n); }
-function setBlocked(){ localStorage.setItem('orbx_gate_blocked', '1'); }
-window.orbxResetGate = () => { localStorage.removeItem('orbx_gate_blocked'); localStorage.removeItem('orbx_gate_tries'); location.reload(); };
-
-function showGate(){
-  gateWrap.classList.remove('hidden');
-  if(isBlocked()){ gateForm.classList.add('hidden'); gateBlockedMsg.classList.remove('hidden'); return; }
-  const t = getTries();
-  if(t > 0){ const l = MAX_TRIES-t; gateAttempts.textContent=l+' attempt'+(l===1?'':'s')+' remaining.'; gateAttempts.style.display='block'; }
-}
-gateForm.addEventListener('submit', e => {
-  e.preventDefault();
-  if(isBlocked()) return;
-  if(document.getElementById('gateCode').value === SECRET_CODE){
-    setTries(0); sessionStorage.setItem('orbx_gate_ok','1');
-    gateWrap.classList.add('hidden'); boot();
-  } else {
-    const t = getTries()+1; setTries(t);
-    if(t >= MAX_TRIES){ setBlocked(); gateForm.classList.add('hidden'); gateBlockedMsg.classList.remove('hidden'); return; }
-    const l = MAX_TRIES-t;
-    gateError.textContent='Maling access code.'; gateError.style.display='block';
-    gateAttempts.textContent=l+' attempt'+(l===1?'':'s')+' remaining.'; gateAttempts.style.display='block';
-    document.getElementById('gateCode').value='';
-  }
-});
-if(sessionStorage.getItem('orbx_gate_ok')==='1'){ gateWrap.classList.add('hidden'); boot(); }
-else showGate();
+// ── Gate removed: totoong proteksyon ay nasa /api/admin/login (bcrypt + server-side lockout) ──
+boot();
 
 // ── SVG Icons ─────────────────────────────────────────────────
 const ICONS = {
