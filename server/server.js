@@ -546,7 +546,26 @@ async function getUnreadCount(username) {
 // ── Admin (PostgreSQL) ────────────────────────────────────────
 const adminTokens = new Map();
 const userTokens = new Map(); // dito nakatago ang mga valid na "pass" ng users
+const gateTokens = new Map();
+const gateAttempts = new Map(); // IP-based lockout tracking
 const TOKEN_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
+const GATE_TOKEN_TTL_MS = 30 * 60 * 1000; // 30 minutes
+const GATE_HASH = '$2a$10$1nb6wynORZ38m.qoN52StONr8yEYwB/vCfxiEYohUXDJV91X1yIAu';
+const GATE_MAX_TRIES = 5;
+const GATE_LOCKOUT_MS = 15 * 60 * 1000;
+
+function requireGateToken(req, res, next) {
+  const header = req.headers.authorization || '';
+  const token  = header.startsWith('Bearer ') ? header.slice(7) : null;
+  if (!token || !gateTokens.has(token))
+    return res.status(401).json({ error: 'Kailangan munang mag-verify ng access code.' });
+  const created = gateTokens.get(token);
+  if (Date.now() - created > GATE_TOKEN_TTL_MS) {
+    gateTokens.delete(token);
+    return res.status(401).json({ error: 'Nag-expire na ang gate session. Mag-verify ulit.' });
+  }
+  next();
+}
 
 function requireUser(req, res, next) {
   const header = req.headers.authorization || '';
@@ -600,13 +619,44 @@ function requireAdmin(req, res, next) {
 //  ROUTES
 // ═══════════════════════════════════════════════════════════════
 
+// ── Gate verification (bago pa ang admin login) ────────────────
+app.post('/api/admin/gate', authLimiter, async (req, res) => {
+  const ip = req.ip || 'unknown';
+  const record = gateAttempts.get(ip) || { tries: 0, lockedUntil: null };
+
+  if (record.lockedUntil && record.lockedUntil > Date.now()) {
+    const minutesLeft = Math.ceil((record.lockedUntil - Date.now()) / 60000);
+    return res.status(403).json({ error: `Naka-lock muna dahil sa sobrang maling attempts. Subukan ulit pagkalipas ng ${minutesLeft} minuto.` });
+  }
+
+  const { code } = req.body || {};
+  if (!code) return res.status(400).json({ error: 'Kailangan ng access code.' });
+
+  const match = await bcrypt.compare(code, GATE_HASH);
+  if (!match) {
+    record.tries += 1;
+    if (record.tries >= GATE_MAX_TRIES) {
+      record.lockedUntil = Date.now() + GATE_LOCKOUT_MS;
+      gateAttempts.set(ip, record);
+      return res.status(403).json({ error: 'Naka-lock na ang access dahil sa sobrang maling attempts. Subukan ulit pagkalipas ng 15 minuto.' });
+    }
+    gateAttempts.set(ip, record);
+    return res.status(401).json({ error: `Maling access code. ${GATE_MAX_TRIES - record.tries} attempt(s) na lang.` });
+  }
+
+  gateAttempts.delete(ip);
+  const token = crypto.randomBytes(24).toString('hex');
+  gateTokens.set(token, Date.now());
+  res.json({ success: true, gateToken: token });
+});
+
 // ── Admin auth ────────────────────────────────────────────────
-app.get('/api/admin/exists', async (req, res) => {
+app.get('/api/admin/exists', requireGateToken, async (req, res) => {
   const count = await getAdminCount();
   res.json({ exists: count > 0 });
 });
 
-app.post('/api/admin/setup', authLimiter, async (req, res) => {
+app.post('/api/admin/setup', authLimiter, requireGateToken, async (req, res) => {
   const { username, password } = req.body || {};
   if (!username || !password)
     return res.status(400).json({ error: 'Lahat ng fields kailangan punan.' });
@@ -623,7 +673,7 @@ app.post('/api/admin/setup', authLimiter, async (req, res) => {
 const ADMIN_MAX_LOGIN_ATTEMPTS = 5;
 const ADMIN_LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
 
-app.post('/api/admin/login', authLimiter, async (req, res) => {
+app.post('/api/admin/login', authLimiter, requireGateToken, async (req, res) => {
   const { username, password } = req.body || {};
   const count = await getAdminCount();
   if (!count)

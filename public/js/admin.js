@@ -1,5 +1,61 @@
-// ── Gate removed: totoong proteksyon ay nasa /api/admin/login (bcrypt + server-side lockout) ──
-boot();
+// ── Gate — server-side verification (totoong secure) ────────────
+const gateWrap       = document.getElementById('gateWrap');
+const gateForm       = document.getElementById('gateForm');
+const gateError      = document.getElementById('gateError');
+const gateAttemptsEl = document.getElementById('gateAttempts');
+const gateBlockedMsg = document.getElementById('gateBlockedMsg');
+
+function getGateToken(){ return sessionStorage.getItem('orbx_gate_token'); }
+function setGateToken(t){ sessionStorage.setItem('orbx_gate_token', t); }
+
+function showGate(){
+  gateWrap.classList.remove('hidden');
+  gateForm.classList.remove('hidden');
+  gateBlockedMsg.classList.add('hidden');
+}
+
+gateForm.addEventListener('submit', async e => {
+  e.preventDefault();
+  gateError.style.display = 'none';
+  const code = document.getElementById('gateCode').value;
+  const submitBtn = gateForm.querySelector('button[type="submit"]');
+  if(submitBtn){ submitBtn.disabled = true; }
+  try{
+    const r = await fetch('/api/admin/gate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code })
+    });
+    const d = await r.json();
+    if(!r.ok){
+      if(r.status === 403){
+        gateForm.classList.add('hidden');
+        gateBlockedMsg.classList.remove('hidden');
+      } else {
+        gateError.textContent = d.error || 'Maling access code.';
+        gateError.style.display = 'block';
+        if(gateAttemptsEl){ gateAttemptsEl.textContent = d.error || ''; gateAttemptsEl.style.display = 'block'; }
+      }
+      if(submitBtn){ submitBtn.disabled = false; }
+      document.getElementById('gateCode').value = '';
+      return;
+    }
+    setGateToken(d.gateToken);
+    gateWrap.classList.add('hidden');
+    boot();
+  } catch(err){
+    gateError.textContent = 'Hindi makonekta sa server.';
+    gateError.style.display = 'block';
+    if(submitBtn){ submitBtn.disabled = false; }
+  }
+});
+
+if(getGateToken()){
+  gateWrap.classList.add('hidden');
+  boot();
+} else {
+  showGate();
+}
 
 // ── SVG Icons ─────────────────────────────────────────────────
 const ICONS = {
@@ -72,7 +128,7 @@ async function boot(){
     clearToken();
   }
   try{
-    const r = await fetch('/api/admin/exists');
+    const r = await fetch('/api/admin/exists', { headers: { Authorization: 'Bearer ' + (getGateToken()||'') } });
     const d = await r.json();
     setupForm.classList.toggle('hidden', d.exists);
     loginForm.classList.toggle('hidden', !d.exists);
@@ -92,8 +148,7 @@ setupForm.addEventListener('submit', async e => {
   if(p.length<6){ errEl.textContent='Minimum 6 characters ang password.'; errEl.style.display='block'; return; }
   if(p!==p2){ errEl.textContent='Hindi magkatugma ang password.'; errEl.style.display='block'; return; }
   try{
-    const r=await fetch('/api/admin/setup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
-    const d=await r.json();
+   const r=await fetch('/api/admin/setup',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+(getGateToken()||'')},body:JSON.stringify({username:u,password:p})});
     if(!r.ok){ errEl.textContent=d.error||'May problema.'; errEl.style.display='block'; return; }
     const lr=await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
     const ld=await lr.json();
@@ -109,7 +164,7 @@ loginForm.addEventListener('submit', async e => {
   const u=document.getElementById('loginUser').value.trim();
   const p=document.getElementById('loginPass').value;
   try{
-    const r=await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
+const r=await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+(getGateToken()||'')},body:JSON.stringify({username:u,password:p})});
     const d=await r.json();
     if(!r.ok){ errEl.textContent=d.error||'Hindi ma-login.'; errEl.style.display='block'; return; }
     setToken(d.token); setStoredUsername(d.username); currentAdminUser=d.username; showDashboard();
