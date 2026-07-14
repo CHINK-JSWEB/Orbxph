@@ -90,9 +90,14 @@
   </main>
 
 <script>
-  const currentUser = localStorage.getItem('orbx_user');
-  if(!currentUser) window.location.href = 'index.html';
+const currentUser = localStorage.getItem('orbx_user');
+  const currentUserToken = localStorage.getItem('orbx_user_token');
+  if(!currentUser || !currentUserToken) window.location.href = 'index.html';
   document.getElementById('dashUsername').textContent = currentUser || '';
+
+  function authHeaders(extra){
+    return Object.assign({ Authorization: 'Bearer ' + (currentUserToken || '') }, extra || {});
+  }
 
   const themeToggle = document.getElementById('themeToggle');
   const themeIcon   = document.getElementById('themeIcon');
@@ -224,7 +229,7 @@
       const params = new URLSearchParams({ limit: PAGE_SIZE, offset: currentOffset });
       if(currentFilter !== 'all') params.set('type', currentFilter);
 
-      const res  = await fetch('/api/transactions/'+encodeURIComponent(currentUser)+'?'+params.toString());
+const res  = await fetch('/api/transactions/'+encodeURIComponent(currentUser)+'?'+params.toString(), { headers: authHeaders() });
       const data = await res.json();
 
       if(append){ allLoadedTransactions = allLoadedTransactions.concat(data); }

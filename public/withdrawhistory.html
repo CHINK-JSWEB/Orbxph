@@ -72,8 +72,13 @@
 
 <script>
   const currentUser = localStorage.getItem('orbx_user');
-  if(!currentUser) window.location.href = 'index.html';
+  const currentUserToken = localStorage.getItem('orbx_user_token');
+  if(!currentUser || !currentUserToken) window.location.href = 'index.html';
   document.getElementById('dashUsername').textContent = currentUser || '';
+
+  function authHeaders(extra){
+    return Object.assign({ Authorization: 'Bearer ' + (currentUserToken || '') }, extra || {});
+  }
 
   const themeToggle = document.getElementById('themeToggle');
   const themeIcon   = document.getElementById('themeIcon');
@@ -94,7 +99,7 @@
     return Math.floor(d/86400)+'d ago';
   }
 
-  const STATUS_LABELS = {
+const STATUS_LABELS = {
     pending: 'Pending',
     approved: 'Approved',
     paid: 'Paid',
@@ -102,10 +107,16 @@
     flagged: 'Flagged',
   };
 
+  function escapeHtml(str){
+    const div = document.createElement('div');
+    div.textContent = str == null ? '' : String(str);
+    return div.innerHTML;
+  }
+
   async function loadWithdrawHistory(){
     const el = document.getElementById('withdrawHistoryList');
     try{
-      const list = await fetch('/api/withdraw/mine/'+encodeURIComponent(currentUser)).then(r=>r.json());
+      const list = await fetch('/api/withdraw/mine/'+encodeURIComponent(currentUser), { headers: authHeaders() }).then(r=>r.json());
       if(!list.length){ el.innerHTML = '<p class="empty-state">Wala ka pang withdrawal request.</p>'; return; }
 
       el.innerHTML = list.map(w => `
@@ -120,11 +131,13 @@
             ${w.processedAt ? `<br>Naproseso: ${timeAgo(w.processedAt)}` : ''}
             ${w.notes ? `<br>Note mo: ${w.notes}` : ''}
           </div>
+          ${w.notes ? `<br>Note mo: ${escapeHtml(w.notes)}` : ''}
+          </div>
           ${w.feedback ? `
             <div class="wh-feedback">
               <div>
                 <div class="wh-feedback-label">Mensahe mula sa Admin</div>
-                <div class="wh-feedback-msg">${w.feedback}</div>
+                <div class="wh-feedback-msg">${escapeHtml(w.feedback)}</div>
               </div>
             </div>` : ''}
         </div>

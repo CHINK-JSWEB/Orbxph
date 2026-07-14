@@ -38,6 +38,7 @@
         <div class="input-row"><input type="password" id="gateCode" placeholder="Enter access code" autocomplete="off"></div>
       </div>
       <div class="gate-attempts" id="gateAttempts"></div>
+      <div class="g-recaptcha" data-sitekey="6LfwF1ItAAAAAP0NDndp_eoPy8DAHR2c0FXf0u4E" style="margin-bottom:14px;"></div>
       <div class="form-error" id="gateError"></div>
       <button type="submit" class="btn-login">Continue</button>
     </form>
@@ -70,6 +71,7 @@
       <p class="sub">Admin Login</p>
       <div class="field"><label>Username</label><div class="input-row"><input type="text" id="loginUser" placeholder="Admin username"></div></div>
       <div class="field"><label>Password</label><div class="input-row"><input type="password" id="loginPass" placeholder="Password"></div></div>
+      <div class="g-recaptcha" id="loginCaptcha" data-sitekey="6LfwF1ItAAAAAP0NDndp_eoPy8DAHR2c0FXf0u4E" style="margin-bottom:14px;"></div>
       <div class="form-error" id="loginError"></div>
       <button type="submit" class="btn-login">Log in</button>
     </form>
@@ -450,6 +452,7 @@
   </div>
 </div>
 
+<script src="https://www.google.com/recaptcha/api.js" async defer></script>
 <script src="js/admin.js"></script>
 </body>
 </html>

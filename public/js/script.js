@@ -218,11 +218,16 @@ document.getElementById('signinForm').addEventListener('submit', async (e) => {
     return showError('signinForm', 'Please enter a valid mobile number.');
   }
 
+  const captchaToken = typeof grecaptcha !== 'undefined' ? grecaptcha.getResponse() : '';
+  if(!captchaToken){
+    return showError('signinForm', 'Please complete the CAPTCHA verification.');
+  }
+
   try{
     const res = await fetch('/api/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone, password })
+      body: JSON.stringify({ phone, password, captchaToken })
     });
     const data = await res.json();
     if(!res.ok){

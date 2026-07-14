@@ -18,13 +18,20 @@ gateForm.addEventListener('submit', async e => {
   e.preventDefault();
   gateError.style.display = 'none';
   const code = document.getElementById('gateCode').value;
+  const captchaWidgets = document.querySelectorAll('.g-recaptcha');
+  const gateCaptchaToken = captchaWidgets.length ? grecaptcha.getResponse(0) : '';
+  if(!gateCaptchaToken){
+    gateError.textContent = 'Please complete the CAPTCHA verification.';
+    gateError.style.display = 'block';
+    return;
+  }
   const submitBtn = gateForm.querySelector('button[type="submit"]');
   if(submitBtn){ submitBtn.disabled = true; }
   try{
     const r = await fetch('/api/admin/gate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code })
+      body: JSON.stringify({ code, captchaToken: gateCaptchaToken })
     });
     const d = await r.json();
     if(!r.ok){
@@ -163,8 +170,15 @@ loginForm.addEventListener('submit', async e => {
   errEl.style.display='none';
   const u=document.getElementById('loginUser').value.trim();
   const p=document.getElementById('loginPass').value;
+  const captchaWidgets = document.querySelectorAll('.g-recaptcha');
+  const loginCaptchaToken = captchaWidgets.length ? grecaptcha.getResponse(captchaWidgets.length - 1) : '';
+  if(!loginCaptchaToken){
+    errEl.textContent = 'Please complete the CAPTCHA verification.';
+    errEl.style.display = 'block';
+    return;
+  }
   try{
-const r=await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+(getGateToken()||'')},body:JSON.stringify({username:u,password:p})});
+    const r=await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+(getGateToken()||'')},body:JSON.stringify({username:u,password:p,captchaToken:loginCaptchaToken})});
     const d=await r.json();
     if(!r.ok){ errEl.textContent=d.error||'Hindi ma-login.'; errEl.style.display='block'; return; }
     setToken(d.token); setStoredUsername(d.username); currentAdminUser=d.username; showDashboard();

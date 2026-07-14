@@ -88,6 +88,24 @@ app.use('/uploads', express.static(UPLOADS_DIR));
 app.use('/api/', generalLimiter);
 
 // ── Utility ───────────────────────────────────────────────────
+async function verifyRecaptcha(token) {
+  if (!token) return false;
+  try {
+    const params = new URLSearchParams();
+    params.append('secret', process.env.RECAPTCHA_SECRET_KEY || '');
+    params.append('response', token);
+    const r = await fetch('https://www.google.com/recaptcha/api/siteverify', {
+      method: 'POST',
+      body: params,
+    });
+    const data = await r.json();
+    return data.success === true;
+  } catch (e) {
+    console.error('[RECAPTCHA ERROR]', e);
+    return false;
+  }
+}
+
 function normalizePhone(raw) {
   let d = String(raw || '').replace(/\D/g, '');
   if (d.startsWith('63') && d.length > 10) d = d.slice(2);
@@ -629,8 +647,10 @@ app.post('/api/admin/gate', authLimiter, async (req, res) => {
     return res.status(403).json({ error: `Naka-lock muna dahil sa sobrang maling attempts. Subukan ulit pagkalipas ng ${minutesLeft} minuto.` });
   }
 
-  const { code } = req.body || {};
+  const { code, captchaToken } = req.body || {};
   if (!code) return res.status(400).json({ error: 'Kailangan ng access code.' });
+  if (!(await verifyRecaptcha(captchaToken)))
+    return res.status(400).json({ error: 'Hindi ma-verify ang CAPTCHA. Subukan ulit.' });
 
   const match = await bcrypt.compare(code, GATE_HASH);
   if (!match) {
@@ -648,6 +668,11 @@ app.post('/api/admin/gate', authLimiter, async (req, res) => {
   const token = crypto.randomBytes(24).toString('hex');
   gateTokens.set(token, Date.now());
   res.json({ success: true, gateToken: token });
+});
+
+// ── Public config (site keys lang, hindi secrets) ──────────────
+app.get('/api/config', (req, res) => {
+  res.json({ recaptchaSiteKey: process.env.RECAPTCHA_SITE_KEY || '' });
 });
 
 // ── Admin auth ────────────────────────────────────────────────
@@ -674,7 +699,9 @@ const ADMIN_MAX_LOGIN_ATTEMPTS = 5;
 const ADMIN_LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
 
 app.post('/api/admin/login', authLimiter, requireGateToken, async (req, res) => {
-  const { username, password } = req.body || {};
+  const { username, password, captchaToken } = req.body || {};
+  if (!(await verifyRecaptcha(captchaToken)))
+    return res.status(400).json({ error: 'Hindi ma-verify ang CAPTCHA. Subukan ulit.' });
   const count = await getAdminCount();
   if (!count)
     return res.status(404).json({ error: 'Wala pang admin account.' });
@@ -842,9 +869,11 @@ const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
 
 app.post('/api/login', authLimiter, async (req, res) => {
-  const { phone: rawPhone, password } = req.body || {};
+  const { phone: rawPhone, password, captchaToken } = req.body || {};
   if (!rawPhone || !password)
     return res.status(400).json({ error: 'Kailangan ng number at password.' });
+  if (!(await verifyRecaptcha(captchaToken)))
+    return res.status(400).json({ error: 'Hindi ma-verify ang CAPTCHA. Subukan ulit.' });
   const phone = normalizePhone(rawPhone);
   const user  = await findUserByPhone(phone);
   if (!user) return res.status(401).json({ error: 'Walang account na may ganitong number.' });

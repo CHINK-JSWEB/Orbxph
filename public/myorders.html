@@ -90,9 +90,14 @@
   </main>
 
 <script>
-  const currentUser = localStorage.getItem('orbx_user');
-  if(!currentUser) window.location.href = 'index.html';
+const currentUser = localStorage.getItem('orbx_user');
+  const currentUserToken = localStorage.getItem('orbx_user_token');
+  if(!currentUser || !currentUserToken) window.location.href = 'index.html';
   document.getElementById('dashUsername').textContent = currentUser || '';
+
+  function authHeaders(extra){
+    return Object.assign({ Authorization: 'Bearer ' + (currentUserToken || '') }, extra || {});
+  }
 
   const themeToggle = document.getElementById('themeToggle');
   const themeIcon   = document.getElementById('themeIcon');
@@ -123,6 +128,12 @@
     return Math.floor(d/86400)+'d ago';
   }
 
+  function escapeHtml(str){
+    const div = document.createElement('div');
+    div.textContent = str == null ? '' : String(str);
+    return div.innerHTML;
+  }
+
   async function loadMyOrders(){
   timerIntervals.forEach(t => clearInterval(t));
   timerIntervals = [];
@@ -130,8 +141,8 @@
   const el = document.getElementById('myOrdersList');
   try{
     const [ordersRes, dailyRes] = await Promise.all([
-      fetch('/api/orders/mine/'+encodeURIComponent(currentUser)),
-      fetch('/api/daily-rewards/'+encodeURIComponent(currentUser))
+      fetch('/api/orders/mine/'+encodeURIComponent(currentUser), { headers: authHeaders() }),
+      fetch('/api/daily-rewards/'+encodeURIComponent(currentUser), { headers: authHeaders() })
     ]);
     const orders    = await ordersRes.json();
     const dailyLogs = await dailyRes.json();
@@ -171,12 +182,12 @@
             ${o.status === 'approved' ? '✅ Approved' : o.status}
           </span>
           ${timerHtml}
-          ${o.feedback ? `
+${o.feedback ? `
             <div class="myorder-feedback">
               <div class="myorder-feedback-icon">!</div>
               <div>
                 <div class="myorder-feedback-label">Message from Admin</div>
-                <div class="myorder-feedback-msg">${o.feedback}</div>
+                <div class="myorder-feedback-msg">${escapeHtml(o.feedback)}</div>
               </div>
             </div>` : ''}
         </div>
