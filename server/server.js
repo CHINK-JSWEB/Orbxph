@@ -1722,6 +1722,20 @@ app.post('/api/change-password', authLimiter, async (req, res) => {
   res.json({ success: true });
 });
 
+app.get('/api/profile/:username', requireUser, async (req, res) => {
+  const user = await findUserByUsername(req.params.username);
+  if (!user) return res.status(404).json({ error: 'User not found.' });
+  res.json({ phone: user.phone, birthday: user.birthday, hobby: user.hobby || '' });
+});
+
+app.patch('/api/profile/:username', requireUser, async (req, res) => {
+  const { birthday, hobby } = req.body || {};
+  const user = await findUserByUsername(req.params.username);
+  if (!user) return res.status(404).json({ error: 'User not found.' });
+  await pool.query('UPDATE users SET birthday = $1, hobby = $2 WHERE username = $3', [birthday || null, hobby || null, user.username]);
+  res.json({ success: true });
+});
+
 // ── Admin: change password ────────────────────────────────────
 app.post('/api/admin/change-password', authLimiter, requireAdmin, async (req, res) => {
   const { currentPassword, newPassword } = req.body || {};

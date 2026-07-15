@@ -1202,11 +1202,15 @@ async function sendSupportMessage(){
   supportAttachPreview.style.display = 'none';
   supportAttachPreview.innerHTML = '';
   supportAttachInput.value = '';
-  try{
+try{
     const fd = new FormData();
     fd.append('message', text);
     if(fileToSend) fd.append('attachment', fileToSend);
-    await fetch('/api/support/'+encodeURIComponent(currentUser)+'/message', { method:'POST', headers: authHeaders(), body: fd });
+    const res = await fetch('/api/support/'+encodeURIComponent(currentUser)+'/message', { method:'POST', headers: authHeaders(), body: fd });
+    if(!res.ok){
+      const data = await res.json().catch(()=>({}));
+      alert(data.error || 'Hindi na-send ang mensahe. Subukan ulit.');
+    }
     await loadSupportChat(true);
   } catch(e){ alert('Hindi makonekta sa server.'); }
   supportSendBtn.disabled = false;

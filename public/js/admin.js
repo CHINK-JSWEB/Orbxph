@@ -155,7 +155,9 @@ setupForm.addEventListener('submit', async e => {
   if(p.length<6){ errEl.textContent='Minimum 6 characters ang password.'; errEl.style.display='block'; return; }
   if(p!==p2){ errEl.textContent='Hindi magkatugma ang password.'; errEl.style.display='block'; return; }
   try{
+   try{
    const r=await fetch('/api/admin/setup',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+(getGateToken()||'')},body:JSON.stringify({username:u,password:p})});
+    const d=await r.json();
     if(!r.ok){ errEl.textContent=d.error||'May problema.'; errEl.style.display='block'; return; }
     const lr=await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
     const ld=await lr.json();

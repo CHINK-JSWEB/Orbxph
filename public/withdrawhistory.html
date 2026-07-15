@@ -125,13 +125,11 @@ const STATUS_LABELS = {
             <span class="wh-amount">&#8369;${Number(w.amount).toLocaleString()}</span>
             <span class="wh-status ${w.status}">${STATUS_LABELS[w.status] || w.status}</span>
           </div>
-          <div class="wh-meta">
+<div class="wh-meta">
             <strong>${w.method}</strong> &middot; ${w.accountName} &middot; <strong>${w.accountNumber}</strong><br>
             Hiniling: ${timeAgo(w.createdAt)}
             ${w.processedAt ? `<br>Naproseso: ${timeAgo(w.processedAt)}` : ''}
-            ${w.notes ? `<br>Note mo: ${w.notes}` : ''}
-          </div>
-          ${w.notes ? `<br>Note mo: ${escapeHtml(w.notes)}` : ''}
+            ${w.notes ? `<br>Note mo: ${escapeHtml(w.notes)}` : ''}
           </div>
           ${w.feedback ? `
             <div class="wh-feedback">

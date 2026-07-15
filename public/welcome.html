@@ -1817,6 +1817,14 @@
           <label class="drawer-label">Gmail Address</label>
           <input class="drawer-input" id="drawerGmail" type="email" placeholder="yourname@gmail.com">
         </div>
+        <div class="drawer-field">
+          <label class="drawer-label">Birthday</label>
+          <input class="drawer-input" id="drawerBirthday" type="date">
+        </div>
+        <div class="drawer-field">
+          <label class="drawer-label">Hobbies</label>
+          <input class="drawer-input" id="drawerHobby" type="text" placeholder="e.g. Basketball, Reading, Gaming">
+        </div>
       </div>
       <div class="drawer-section" style="margin-top:16px;">
         <div class="drawer-section-label">Change Password</div>
@@ -2115,20 +2123,37 @@ function updateDrawerAvatar(){
   else { img.style.display='none'; letter.style.display=''; letter.textContent=currentUser?currentUser.charAt(0).toUpperCase():'?'; }
 }
 
-function openProfileDrawer(){
+async function openProfileDrawer(){
   const p = getUserProfile();
   document.getElementById('drawerUsernameDisplay').textContent = currentUser || '—';
-  document.getElementById('drawerPhone').value = localStorage.getItem('orbx_user_phone') || '—';
-  document.getElementById('drawerPhoneDisplay').textContent = localStorage.getItem('orbx_user_phone') || '—';
   document.getElementById('drawerGmail').value = p.gmail;
   document.getElementById('drawerCurPass').value = '';
   document.getElementById('drawerNewPass').value = '';
   document.getElementById('drawerNewPass2').value = '';
   document.getElementById('drawerError').style.display = 'none';
   document.getElementById('drawerSuccess').style.display = 'none';
+  document.getElementById('drawerPhone').value = 'Loading...';
+  document.getElementById('drawerPhoneDisplay').textContent = 'Loading...';
+  document.getElementById('drawerBirthday').value = '';
+  document.getElementById('drawerHobby').value = '';
   updateDrawerAvatar();
   document.getElementById('profileDrawerOverlay').classList.add('show');
   document.getElementById('profileDrawer').classList.add('open');
+
+  try{
+    const res = await fetch('/api/profile/'+encodeURIComponent(currentUser), { headers: authHeaders() });
+    const data = await res.json();
+    const phoneDisplay = data.phone || '—';
+    document.getElementById('drawerPhone').value = phoneDisplay;
+    document.getElementById('drawerPhoneDisplay').textContent = phoneDisplay;
+    if(data.phone) localStorage.setItem('orbx_user_phone', data.phone);
+    document.getElementById('drawerBirthday').value = data.birthday ? data.birthday.slice(0,10) : '';
+    document.getElementById('drawerHobby').value = data.hobby || '';
+  } catch(e){
+    const fallback = localStorage.getItem('orbx_user_phone') || '—';
+    document.getElementById('drawerPhone').value = fallback;
+    document.getElementById('drawerPhoneDisplay').textContent = fallback;
+  }
 }
 
 function closeProfileDrawer(){
@@ -2172,6 +2197,15 @@ document.getElementById('drawerSaveBtn').addEventListener('click', async () => {
   const newPass = document.getElementById('drawerNewPass').value;
   const newPass2 = document.getElementById('drawerNewPass2').value;
   saveUserProfile({ gmail });
+  const birthday = document.getElementById('drawerBirthday').value;
+  const hobby = document.getElementById('drawerHobby').value.trim();
+  try{
+    await fetch('/api/profile/'+encodeURIComponent(currentUser), {
+      method: 'PATCH',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ birthday: birthday || null, hobby })
+    });
+  } catch(e){}
   if(curPass || newPass || newPass2){
     if(!curPass){ errEl.textContent='I-enter ang current password.'; errEl.style.display='block'; return; }
     if(!newPass || newPass.length < 6){ errEl.textContent='Minimum 6 characters ang new password.'; errEl.style.display='block'; return; }
