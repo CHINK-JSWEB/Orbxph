@@ -82,7 +82,11 @@ const UPLOADS_DIR       = path.join(__dirname, 'uploads');
 
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
-app.use(express.json());
+app.use((req, res, next) => {
+  // Skip JSON parsing sa webhook route — kailangan natin ang raw body para sa signature verification
+  if (req.originalUrl === '/api/webhooks/paymongo') return next();
+  express.json()(req, res, next);
+});
 app.use(express.static(path.join(__dirname, '..', 'public')));
 app.use('/uploads', express.static(UPLOADS_DIR));
 app.use('/api/', generalLimiter);
@@ -149,6 +153,8 @@ function mapOrderRow(o) {
     approvedAt: o.approved_at,
     bonusClaimed: o.bonus_claimed,
     createdAt: o.created_at,
+    paymongoPaymentIntentId: o.paymongo_payment_intent_id,
+    paymongoStatus: o.paymongo_status,
   };
 }
 
@@ -920,6 +926,90 @@ app.post('/api/login', authLimiter, async (req, res) => {
 
 // ── Orders ────────────────────────────────────────────────────
 const supabase = require('./supabaseClient');
+// ── PayMongo Integration ────────────────────────────────────────
+const PAYMONGO_SECRET_KEY = process.env.PAYMONGO_SECRET_KEY;
+const PAYMONGO_API = 'https://api.paymongo.com/v1';
+
+function paymongoAuthHeader() {
+  return 'Basic ' + Buffer.from(PAYMONGO_SECRET_KEY + ':').toString('base64');
+}
+
+async function paymongoRequest(endpoint, method, body) {
+  const res = await fetch(`${PAYMONGO_API}${endpoint}`, {
+    method,
+    headers: {
+      'Authorization': paymongoAuthHeader(),
+      'Content-Type': 'application/json',
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    console.error('[PAYMONGO ERROR]', JSON.stringify(data));
+    throw new Error(data.errors?.[0]?.detail || 'PayMongo request failed.');
+  }
+  return data;
+}
+
+// Gumawa ng Payment Intent + QRPh Payment Method, i-attach, ibalik ang QR data
+async function createQrPhPayment(amountPesos, description) {
+  const amountCentavos = Math.round(amountPesos * 100);
+
+  const intent = await paymongoRequest('/payment_intents', 'POST', {
+    data: {
+      attributes: {
+        amount: amountCentavos,
+        payment_method_allowed: ['qrph'],
+        payment_method_options: { qrph: {} },
+        currency: 'PHP',
+        description: description || 'ORB-X PH Order',
+        capture_type: 'automatic',
+      },
+    },
+  });
+
+  const paymentIntentId = intent.data.id;
+  const clientKey = intent.data.attributes.client_key;
+
+  const method = await paymongoRequest('/payment_methods', 'POST', {
+    data: { attributes: { type: 'qrph' } },
+  });
+
+  const attached = await paymongoRequest(`/payment_intents/${paymentIntentId}/attach`, 'POST', {
+    data: {
+      attributes: {
+        payment_method: method.data.id,
+        client_key: clientKey,
+      },
+    },
+  });
+
+  const nextAction = attached.data.attributes.next_action;
+  const qrImageUrl = nextAction?.code?.image_url || nextAction?.redirect?.url || null;
+
+  return {
+    paymentIntentId,
+    status: attached.data.attributes.status,
+    qrImageUrl,
+  };
+}
+
+async function retrievePaymentIntent(paymentIntentId) {
+  const r = await paymongoRequest(`/payment_intents/${paymentIntentId}`, 'GET');
+  return r.data;
+}
+
+function verifyPaymongoSignature(rawBody, signatureHeader, webhookSecret) {
+  if (!signatureHeader) return false;
+  const parts = Object.fromEntries(
+    signatureHeader.split(',').map(p => p.split('='))
+  );
+  const timestamp = parts.t;
+  const signature = parts.te || parts.li; // 'te' = test mode, 'li' = live mode
+  const payload = `${timestamp}.${rawBody}`;
+  const expected = crypto.createHmac('sha256', webhookSecret).update(payload).digest('hex');
+  return expected === signature;
+}
 const SCREENSHOTS_BUCKET = 'order-screenshots';
 
 const storage = multer.memoryStorage();
@@ -1001,6 +1091,39 @@ app.get('/api/orders/mine/:username', requireUser, async (req, res) => {
   res.json(combined);
 });
 
+// CLIENT: Create QR Ph payment (bago pa mag-order — walang screenshot na kailangan)
+app.post('/api/orders/paymongo/create', submitLimiter, requireUser, async (req, res) => {
+  const { username, tier } = req.body || {};
+
+  if (!VALID_PACKAGES.hasOwnProperty(tier))
+    return res.status(400).json({ error: 'Invalid na package/tier.' });
+  const price = VALID_PACKAGES[tier];
+
+  try {
+    const payment = await createQrPhPayment(price, `${tier} package - ${username}`);
+
+    const id = Date.now().toString(36);
+    await pool.query(
+      `INSERT INTO orders (id, username, tier, price, method, status, paymongo_payment_intent_id, paymongo_status)
+       VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7)`,
+      [id, username, tier, price, 'GCash (QR Ph)', payment.paymentIntentId, payment.status]
+    );
+
+    console.log(`[QR PH CREATED] ${username} -> ${tier} (₱${price}) intent=${payment.paymentIntentId}`);
+    res.json({ success: true, orderId: id, qrImageUrl: payment.qrImageUrl, paymentIntentId: payment.paymentIntentId });
+  } catch (err) {
+    console.error('[QR PH CREATE ERROR]', err);
+    res.status(500).json({ error: 'Hindi nagawa ang QR code. Subukan ulit.' });
+  }
+});
+
+// CLIENT: Poll payment status (habang naghihintay ng scan)
+app.get('/api/orders/paymongo/status/:orderId', requireUser, async (req, res) => {
+  const order = await findOrderById(req.params.orderId);
+  if (!order) return res.status(404).json({ error: 'Order not found.' });
+  res.json({ status: order.status, paymongoStatus: order.paymongoStatus });
+});
+
 
 // ADMIN: All orders
 app.get('/api/orders', requireAdmin, async (req, res) => {
@@ -1028,92 +1151,17 @@ app.patch('/api/orders/:id', requireAdmin, async (req, res) => {
         error: 'Cannot approve a flagged order. The flag is permanent.'
       });
 
-    const wasApproved = order.status === 'approved';
-    let newApprovedAt = order.approvedAt;
-    let newBonusClaimed = order.bonusClaimed;
-
-    if (status === 'approved' && !wasApproved) {
-      newApprovedAt = new Date().toISOString();
-
-      await createNotification(
-        order.username,
-        'order_approved',
-        'Order Approved',
-        `Your order for ${order.tier} (₱${order.price.toLocaleString()}) has been approved!`
-      );
-
-      // Daily Reward tracking
-      const dailyReward = parseFloat((order.price * DAILY_REWARD_RATE).toFixed(2));
-      await pool.query(
-        `INSERT INTO daily_logs (order_id, username, tier, price, daily_reward, started_at, last_credited_at, total_credited)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 0)
-         ON CONFLICT (order_id) DO NOTHING`,
-        [order.id, order.username, order.tier, order.price, dailyReward, newApprovedAt, newApprovedAt]
-      );
-      console.log(`[DAILY LOG] Started for ${order.username} - ₱${dailyReward}/day (${order.tier})`);
-
-      // Multi-Level Referral Reward (Level 1: 25%, Level 2: 10%, Level 3: 5%)
-      let chainUsername = order.username;
-      for (let level = 1; level <= 3; level++) {
-        const chainUser = await findUserByUsername(chainUsername);
-        if (!chainUser || !chainUser.referred_by) break;
-
-        const inviterKey    = chainUser.referred_by;
-        const referralEntry = await getReferralByUsername(inviterKey);
-
-        if (referralEntry) {
-          const alreadyCreditedRow = await pool.query(
-            'SELECT id FROM referral_invites WHERE referrer_username = $1 AND order_id = $2 AND level = $3',
-            [referralEntry.username, order.id, level]
-          );
-          const alreadyCredited = alreadyCreditedRow.rows.length > 0;
-
-          if (!alreadyCredited) {
-            let rate;
-            if (level === 1) {
-              rate = (await getUserRank(inviterKey)).l1Rate;
-            } else if (level === 2) {
-              rate = L2_RATE;
-            } else {
-              rate = L3_RATE;
-            }
-            const reward = parseFloat((order.price * rate).toFixed(2));
-            await pool.query(
-              `INSERT INTO referral_invites
-               (referrer_username, invited_username, order_id, tier, price, level, reward, credited_at)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-              [referralEntry.username, order.username, order.id, order.tier, order.price, level, reward, newApprovedAt]
-            );
-            const inviterUser = await findUserByUsername(inviterKey);
-            if (inviterUser) {
-              await creditWallet(
-                inviterUser.username, reward,
-                `Referral reward L${level} - ${order.username} (${order.tier})`,
-                'referral_commission'
-              );
-              await createNotification(
-                inviterUser.username,
-                'referral_commission',
-                'Referral Commission Received',
-                `You earned ₱${reward.toLocaleString()} from ${order.username}'s ${order.tier} order (Level ${level}).`
-              );
-            }
-          }
-        }
-        chainUsername = chainUser.referred_by;
-      }
+    if (status === 'approved' && order.status !== 'approved') {
+      await approveOrderInternal(order.id);
     }
 
     if (status !== 'approved') {
       await pool.query('DELETE FROM daily_logs WHERE order_id = $1', [order.id]);
-      newApprovedAt = null;
-      newBonusClaimed = false;
+      await pool.query(
+        'UPDATE orders SET status = $1, approved_at = NULL, bonus_claimed = false WHERE id = $2',
+        [status, order.id]
+      );
     }
-
-    await pool.query(
-      'UPDATE orders SET status = $1, approved_at = $2, bonus_claimed = $3 WHERE id = $4',
-      [status, newApprovedAt, newBonusClaimed, order.id]
-    );
   }
 
   if (feedback !== undefined) {
@@ -1131,7 +1179,8 @@ app.patch('/api/orders/:id', requireAdmin, async (req, res) => {
   const updatedOrder = await findOrderById(order.id);
   res.json({ success: true, order: updatedOrder });
 });
-// ADMIN: Delete single order → archive
+
+    // ADMIN: Delete single order → archive
 app.delete('/api/orders/:id', requireAdmin, async (req, res) => {
   const order = await findOrderById(req.params.id);
   if (!order) return res.status(404).json({ error: 'Order not found.' });
@@ -1151,6 +1200,90 @@ app.delete('/api/orders/:id', requireAdmin, async (req, res) => {
   console.log(`[DELETE ORDER] Archived: ${order.username} - ${order.tier} (${order.status})`);
   res.json({ success: true });
 });
+
+// ── Reusable order approval logic (ginagamit ng admin PATCH at ng PayMongo webhook) ──
+async function approveOrderInternal(orderId) {
+  const order = await findOrderById(orderId);
+  if (!order) throw new Error('Order not found.');
+  if (order.status === 'approved') return order; // idempotent — huwag ulitin kung approved na
+
+  const newApprovedAt = new Date().toISOString();
+
+  await createNotification(
+    order.username,
+    'order_approved',
+    'Order Approved',
+    `Your order for ${order.tier} (₱${order.price.toLocaleString()}) has been approved!`
+  );
+
+  // Daily Reward tracking
+  const dailyReward = parseFloat((order.price * DAILY_REWARD_RATE).toFixed(2));
+  await pool.query(
+    `INSERT INTO daily_logs (order_id, username, tier, price, daily_reward, started_at, last_credited_at, total_credited)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, 0)
+     ON CONFLICT (order_id) DO NOTHING`,
+    [order.id, order.username, order.tier, order.price, dailyReward, newApprovedAt, newApprovedAt]
+  );
+  console.log(`[DAILY LOG] Started for ${order.username} - ₱${dailyReward}/day (${order.tier})`);
+
+  // Multi-Level Referral Reward (Level 1: 25%+, Level 2: 10%, Level 3: 5%)
+  let chainUsername = order.username;
+  for (let level = 1; level <= 3; level++) {
+    const chainUser = await findUserByUsername(chainUsername);
+    if (!chainUser || !chainUser.referred_by) break;
+
+    const inviterKey    = chainUser.referred_by;
+    const referralEntry = await getReferralByUsername(inviterKey);
+
+    if (referralEntry) {
+      const alreadyCreditedRow = await pool.query(
+        'SELECT id FROM referral_invites WHERE referrer_username = $1 AND order_id = $2 AND level = $3',
+        [referralEntry.username, order.id, level]
+      );
+      const alreadyCredited = alreadyCreditedRow.rows.length > 0;
+
+      if (!alreadyCredited) {
+        let rate;
+        if (level === 1) {
+          rate = (await getUserRank(inviterKey)).l1Rate;
+        } else if (level === 2) {
+          rate = L2_RATE;
+        } else {
+          rate = L3_RATE;
+        }
+        const reward = parseFloat((order.price * rate).toFixed(2));
+        await pool.query(
+          `INSERT INTO referral_invites
+           (referrer_username, invited_username, order_id, tier, price, level, reward, credited_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [referralEntry.username, order.username, order.id, order.tier, order.price, level, reward, newApprovedAt]
+        );
+        const inviterUser = await findUserByUsername(inviterKey);
+        if (inviterUser) {
+          await creditWallet(
+            inviterUser.username, reward,
+            `Referral reward L${level} - ${order.username} (${order.tier})`,
+            'referral_commission'
+          );
+          await createNotification(
+            inviterUser.username,
+            'referral_commission',
+            'Referral Commission Received',
+            `You earned ₱${reward.toLocaleString()} from ${order.username}'s ${order.tier} order (Level ${level}).`
+          );
+        }
+      }
+    }
+    chainUsername = chainUser.referred_by;
+  }
+
+  await pool.query(
+    'UPDATE orders SET status = $1, approved_at = $2 WHERE id = $3',
+    ['approved', newApprovedAt, order.id]
+  );
+
+  return await findOrderById(order.id);
+}
 
 // ADMIN: Bulk delete approved orders → archive
 app.delete('/api/orders/bulk/:status', requireAdmin, async (req, res) => {
@@ -1884,6 +2017,38 @@ app.patch('/api/admin/support/:id/status', requireAdmin, async (req, res) => {
   res.json({ success: true });
 });
 
+// ── PayMongo Webhook ──────────────────────────────────────────
+app.post('/api/webhooks/paymongo', express.raw({ type: 'application/json' }), async (req, res) => {
+  const signature = req.headers['paymongo-signature'];
+  const rawBody = req.body.toString('utf8');
+
+  if (!verifyPaymongoSignature(rawBody, signature, process.env.PAYMONGO_WEBHOOK_SECRET)) {
+    console.error('[WEBHOOK] Invalid signature');
+    return res.status(400).json({ error: 'Invalid signature.' });
+  }
+
+  const event = JSON.parse(rawBody);
+  const eventType = event.data?.attributes?.type;
+  const paymentIntentId = event.data?.attributes?.data?.attributes?.payment_intent_id
+    || event.data?.attributes?.data?.id;
+
+  console.log(`[WEBHOOK] Received: ${eventType}`);
+
+  if (eventType === 'payment.paid') {
+    const orderRow = await pool.query(
+      'SELECT * FROM orders WHERE paymongo_payment_intent_id = $1',
+      [paymentIntentId]
+    );
+    const order = orderRow.rows[0] ? mapOrderRow(orderRow.rows[0]) : null;
+
+if (order && order.status !== 'approved') {
+      await approveOrderInternal(order.id);
+      console.log(`[AUTO-APPROVED] ${order.username} -> ${order.tier} via QR Ph`);
+    }
+  }
+
+  res.status(200).json({ received: true });
+});
 // ── Start ─────────────────────────────────────────────────────
 app.listen(PORT, async () => {
   console.log(`ORB-X PH server running sa http://localhost:${PORT}`);
