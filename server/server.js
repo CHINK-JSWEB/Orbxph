@@ -1016,8 +1016,32 @@ const storage = multer.memoryStorage();
 const upload = multer({
   storage,
   limits: { fileSize: 8 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => cb(null, file.mimetype.startsWith('image/'))
+  fileFilter: (req, file, cb) => {
+    if (!file.mimetype.startsWith('image/')) {
+      return cb(new Error('ONLY_IMAGES'));
+    }
+    cb(null, true);
+  }
 });
+
+function handleUploadErrors(err, req, res, next) {
+  if (err) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ error: 'Masyadong malaki ang file. Max 8MB lang.' });
+    }
+    if (err.message === 'ONLY_IMAGES') {
+      return res.status(400).json({ error: 'Larawan lang (JPG/PNG) ang pwedeng i-attach. Bawal ang video o ibang file type.' });
+    }
+    return res.status(400).json({ error: 'Hindi na-upload ang file. Subukan ulit.' });
+  }
+  next();
+}
+
+function uploadSingle(fieldName) {
+  return (req, res, next) => {
+    upload.single(fieldName)(req, res, (err) => handleUploadErrors(err, req, res, next));
+  };
+}
 
 // Tunay na pag-verify ng file gamit ang magic bytes — hindi lang basta client-supplied mimetype
 async function isRealImage(buffer) {
@@ -1055,7 +1079,7 @@ const VALID_PACKAGES = {
   'Elite':    1500,
 };
 
-app.post('/api/orders', submitLimiter, upload.single('screenshot'), requireUser, async (req, res) => {
+app.post('/api/orders', submitLimiter, uploadSingle('screenshot'), requireUser, async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Walang na-attach na screenshot.' });
   if (!(await isRealImage(req.file.buffer)))
     return res.status(400).json({ error: 'Invalid na file. Larawan lang (JPG/PNG) ang tinatanggap.' });
@@ -1916,7 +1940,7 @@ app.get('/api/support/:username', requireUser, async (req, res) => {
 });
 
 // CLIENT: send message (may kasamang optional attachment)
-app.post('/api/support/:username/message', submitLimiter, upload.single('attachment'), requireUser, async (req, res) => {
+app.post('/api/support/:username/message', submitLimiter, uploadSingle('attachment'), requireUser, async (req, res) => {
   const message = (req.body.message || '').trim();
   if (!message && !req.file) return res.status(400).json({ error: 'Walang laman ang mensahe.' });
 
@@ -1973,7 +1997,7 @@ app.get('/api/admin/support/:id/messages', requireAdmin, async (req, res) => {
 });
 
 // ADMIN: reply (may kasamang optional attachment)
-app.post('/api/admin/support/:id/message', requireAdmin, upload.single('attachment'), async (req, res) => {
+app.post('/api/admin/support/:id/message', requireAdmin, uploadSingle('attachment'), async (req, res) => {
   const message = (req.body.message || '').trim();
   if (!message && !req.file) return res.status(400).json({ error: 'Message required.' });
 

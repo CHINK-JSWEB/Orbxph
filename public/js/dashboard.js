@@ -1209,6 +1209,16 @@ if(supportAttachBtn) supportAttachBtn.addEventListener('click', () => supportAtt
 if(supportAttachInput) supportAttachInput.addEventListener('change', () => {
   const file = supportAttachInput.files[0];
   if(!file) return;
+  if(!file.type.startsWith('image/')){
+    alert('Larawan lang (JPG/PNG) ang pwedeng i-attach dito. Bawal ang video.');
+    supportAttachInput.value = '';
+    return;
+  }
+  if(file.size > 8 * 1024 * 1024){
+    alert('Masyadong malaki ang larawan. Max 8MB lang.');
+    supportAttachInput.value = '';
+    return;
+  }
   supportSelectedFile = file;
   const reader = new FileReader();
   reader.onload = ev => {
@@ -1231,25 +1241,48 @@ const supportSendBtn = document.getElementById('supportSendBtn');
 async function sendSupportMessage(){
   const text = supportInput.value.trim();
   if(!text && !supportSelectedFile) return;
+
   supportSendBtn.disabled = true;
-  supportInput.value = '';
+  supportSendBtn.textContent = 'Sending...';
+
   const fileToSend = supportSelectedFile;
-  supportSelectedFile = null;
-  supportAttachPreview.style.display = 'none';
-  supportAttachPreview.innerHTML = '';
-  supportAttachInput.value = '';
-try{
+  const messageToSend = text;
+
+  try{
     const fd = new FormData();
-    fd.append('message', text);
+    fd.append('message', messageToSend);
     if(fileToSend) fd.append('attachment', fileToSend);
-    const res = await fetch('/api/support/'+encodeURIComponent(currentUser)+'/message', { method:'POST', headers: authHeaders(), body: fd });
+
+    const res = await fetch('/api/support/'+encodeURIComponent(currentUser)+'/message', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: fd
+    });
+
+    let data = {};
+    try{ data = await res.json(); } catch(e){}
+
     if(!res.ok){
-      const data = await res.json().catch(()=>({}));
       alert(data.error || 'Hindi na-send ang mensahe. Subukan ulit.');
+      console.error('[SUPPORT SEND ERROR]', res.status, data);
+      return;
     }
+
+    supportInput.value = '';
+    supportSelectedFile = null;
+    supportAttachPreview.style.display = 'none';
+    supportAttachPreview.innerHTML = '';
+    supportAttachInput.value = '';
+
     await loadSupportChat(true);
-  } catch(e){ alert('Hindi makonekta sa server.'); }
-  supportSendBtn.disabled = false;
+
+  } catch(e){
+    console.error('[SUPPORT SEND NETWORK ERROR]', e);
+    alert('Hindi makonekta sa server. I-check ang internet connection mo.');
+  } finally {
+    supportSendBtn.disabled = false;
+    supportSendBtn.textContent = 'Send';
+  }
 }
 supportSendBtn.addEventListener('click', sendSupportMessage);
 supportInput.addEventListener('keydown', e => {

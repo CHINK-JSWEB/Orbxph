@@ -1275,6 +1275,16 @@ if(supportThreadAttachBtn) supportThreadAttachBtn.addEventListener('click', () =
 if(supportThreadAttachInput) supportThreadAttachInput.addEventListener('change', () => {
   const file = supportThreadAttachInput.files[0];
   if(!file) return;
+  if(!file.type.startsWith('image/')){
+    alert('Larawan lang (JPG/PNG) ang pwedeng i-attach. Bawal ang video.');
+    supportThreadAttachInput.value = '';
+    return;
+  }
+  if(file.size > 8 * 1024 * 1024){
+    alert('Masyadong malaki ang larawan. Max 8MB lang.');
+    supportThreadAttachInput.value = '';
+    return;
+  }
   supportThreadSelectedFile = file;
   const reader = new FileReader();
   reader.onload = ev => {
