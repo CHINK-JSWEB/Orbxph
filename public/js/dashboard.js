@@ -570,9 +570,6 @@ async function renderAllOrders(){
 // ── Order Modal ───────────────────────────────────────────────
 const orderOverlay = document.getElementById('orderOverlay');
 const orderBody    = document.getElementById('orderBody');
-const GCASH_NUMBER         = '09555504904';
-const GCASH_NUMBER_DISPLAY = '0955 550 4904';
-const GCASH_NAME           = 'J****L S';
 
 function renderPaymentMethods(product){
   orderBody.innerHTML = `
@@ -598,74 +595,113 @@ function renderPaymentMethods(product){
   document.getElementById('pmGcash').addEventListener('click', ()=>renderGcashDetails(product));
 }
 
+let qrPollInterval = null;
+
+function clearQrPoll(){
+  if(qrPollInterval){ clearInterval(qrPollInterval); qrPollInterval = null; }
+}
+
 function renderGcashDetails(product){
   orderBody.innerHTML = `
     <button class="pm-back" id="pmBack">&larr; Back to payment methods</button>
     <div class="gcash-panel">
       <div class="pm-logo-slot lg"><img src="assets/payment/gcash.png" alt="GCash" onerror="this.style.display='none';this.parentElement.classList.add('empty')"></div>
-      <div class="gcash-label">Send Payment via GCash</div>
+      <div class="gcash-label">Generating QR Code...</div>
       <div class="gcash-amount">&#8369;${product.price.toLocaleString()}</div>
-      <div class="gcash-row">
-        <div><div class="gcash-row-label">Number</div><div class="gcash-row-value">${GCASH_NUMBER_DISPLAY}</div></div>
-        <button class="copy-btn" id="copyNumber">Copy</button>
-      </div>
-      <div class="gcash-row">
-        <div><div class="gcash-row-label">Account Name</div><div class="gcash-row-value">${GCASH_NAME}</div></div>
-      </div>
-      <div class="order-confirm-note">Magbayad gamit ang detalye sa itaas, tapos i-attach ang screenshot bilang proof of payment sa ibaba.</div>
-    </div>
-    <div class="upload-section">
-      <div class="pm-label">Attach Payment Screenshot</div>
-      <div class="upload-warning">Siguraduhing <strong>buo at orihinal</strong> ang screenshot — walang crop, walang edit, at hindi peke.</div>
-      <label class="upload-drop" id="uploadDrop">
-        <input type="file" id="screenshotInput" accept="image/*" hidden>
-        <span id="uploadHint">Tap to choose screenshot</span>
-        <img id="uploadPreview" class="upload-preview" style="display:none">
-      </label>
-      <div class="form-error" id="orderFormError"></div>
-      <button class="pc-order-btn" id="submitOrderBtn">Send</button>
+      <div style="text-align:center;padding:30px 0;color:var(--muted);font-size:13px;">Please wait...</div>
     </div>`;
 
-  document.getElementById('pmBack').addEventListener('click', ()=>renderPaymentMethods(product));
-  document.getElementById('copyNumber').addEventListener('click', ()=>{
-    const btn = document.getElementById('copyNumber');
-    navigator.clipboard.writeText(GCASH_NUMBER).then(()=>{ btn.textContent='Copied'; setTimeout(()=>btn.textContent='Copy',1500); }).catch(()=>{ btn.textContent=GCASH_NUMBER; });
+  document.getElementById('pmBack').addEventListener('click', ()=>{
+    clearQrPoll();
+    renderPaymentMethods(product);
   });
 
-  const fileInput = document.getElementById('screenshotInput');
-  const preview   = document.getElementById('uploadPreview');
-  const hint      = document.getElementById('uploadHint');
-  let selectedFile = null;
-  document.getElementById('uploadDrop').addEventListener('click', ()=>fileInput.click());
-  fileInput.addEventListener('change', ()=>{
-    const file = fileInput.files[0];
-    if(!file) return;
-    selectedFile = file;
-    const reader = new FileReader();
-    reader.onload = ev=>{ preview.src=ev.target.result; preview.style.display='block'; hint.style.display='none'; };
-    reader.readAsDataURL(file);
-  });
+  createQrPhOrder(product);
+}
 
-  document.getElementById('submitOrderBtn').addEventListener('click', async ()=>{
-    const errEl     = document.getElementById('orderFormError');
-    const submitBtn = document.getElementById('submitOrderBtn');
-    errEl.style.display='none';
-    if(!selectedFile){ errEl.textContent='Maglagay muna ng screenshot bago mag-submit.'; errEl.style.display='block'; return; }
-    submitBtn.disabled=true; submitBtn.textContent='Submitting...';
-    const fd = new FormData();
-    fd.append('screenshot',selectedFile);
-    fd.append('username',currentUser);
-    fd.append('tier',product.tier);
-    fd.append('price',product.price);
-    fd.append('method','GCash');
+async function createQrPhOrder(product){
+  try{
+    const res = await fetch('/api/orders/paymongo/create', {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ username: currentUser, tier: product.tier })
+    });
+    const data = await res.json();
+
+    if(!res.ok){
+      orderBody.innerHTML = `
+        <button class="pm-back" id="pmBack">&larr; Back to payment methods</button>
+        <div class="order-confirm-note" style="color:#ff8080;border-color:rgba(255,90,90,0.3);background:rgba(255,90,90,0.06);">
+          ${data.error || 'Hindi nagawa ang QR code. Subukan ulit.'}
+        </div>`;
+      document.getElementById('pmBack').addEventListener('click', ()=>renderPaymentMethods(product));
+      return;
+    }
+
+    renderQrDisplay(product, data.orderId, data.qrImageUrl);
+    startPollingPaymentStatus(product, data.orderId);
+
+  } catch(err){
+    orderBody.innerHTML = `
+      <button class="pm-back" id="pmBack">&larr; Back to payment methods</button>
+      <div class="order-confirm-note" style="color:#ff8080;border-color:rgba(255,90,90,0.3);background:rgba(255,90,90,0.06);">
+        Hindi makonekta sa server. Subukan ulit.
+      </div>`;
+    document.getElementById('pmBack').addEventListener('click', ()=>renderPaymentMethods(product));
+  }
+}
+
+function renderQrDisplay(product, orderId, qrImageUrl){
+  orderBody.innerHTML = `
+    <button class="pm-back" id="pmBack">&larr; Back to payment methods</button>
+    <div class="gcash-panel">
+      <div class="gcash-label">Scan to Pay via GCash / QR Ph</div>
+      <div class="gcash-amount">&#8369;${product.price.toLocaleString()}</div>
+      <div style="display:flex;justify-content:center;padding:16px 0;">
+        ${qrImageUrl
+          ? `<img src="${qrImageUrl}" alt="QR Ph Code" style="width:220px;height:220px;border-radius:14px;background:#fff;padding:10px;">`
+          : `<div style="color:var(--muted);font-size:13px;">Walang available na QR code.</div>`}
+      </div>
+      <div class="order-confirm-note" id="qrStatusNote">
+        <span id="qrStatusText">⏳ Hinihintay ang pagbabayad...</span>
+      </div>
+    </div>
+    <div style="text-align:center;font-size:12px;color:var(--muted);margin-top:14px;">
+      I-scan ang QR gamit ang GCash app mo. Awtomatikong ma-cconfirm ang order mo pagkatapos magbayad — hindi mo na kailangan mag-upload ng screenshot.
+    </div>`;
+
+  document.getElementById('pmBack').addEventListener('click', ()=>{
+    clearQrPoll();
+    renderPaymentMethods(product);
+  });
+}
+
+function startPollingPaymentStatus(product, orderId){
+  clearQrPoll();
+  qrPollInterval = setInterval(async () => {
     try{
-      const res  = await fetch('/api/orders',{method:'POST', headers: authHeaders(), body:fd});
+      const res  = await fetch('/api/orders/paymongo/status/'+encodeURIComponent(orderId), { headers: authHeaders() });
       const data = await res.json();
-      if(!res.ok){ errEl.textContent=data.error||'May problema sa pag-submit.'; errEl.style.display='block'; submitBtn.disabled=false; submitBtn.textContent='Submit Order'; return; }
-      orderBody.innerHTML=`<div class="order-success"><div class="order-success-badge">Submitted</div><h3>Order Received</h3><p>Hihintayin na lang namin ang verification. Salamat, ${currentUser}.</p></div>`;
-      loadOrdersSummary();
-    } catch(err){ errEl.textContent='Hindi makonekta sa server.'; errEl.style.display='block'; submitBtn.disabled=false; submitBtn.textContent='Submit Order'; }
-  });
+
+      if(data.status === 'approved'){
+        clearQrPoll();
+        orderBody.innerHTML = `<div class="order-success"><div class="order-success-badge">Paid</div><h3>Payment Confirmed!</h3><p>Na-approve na ang order mo para sa ${product.tier}. Salamat, ${currentUser}!</p></div>`;
+        loadOrdersSummary();
+        loadWallet();
+      }
+    } catch(err){
+      // Tahimik na mag-continue ang polling kahit magka-error minsan
+    }
+  }, 5000); // check every 5 seconds
+
+  // Auto-stop polling after 10 minutes (QR codes usually expire)
+  setTimeout(() => {
+    if(qrPollInterval){
+      clearQrPoll();
+      const statusText = document.getElementById('qrStatusText');
+      if(statusText) statusText.textContent = '⚠️ Nag-expire na ang QR code. Bumalik sa payment methods para bumuo ng bago.';
+    }
+  }, 10 * 60 * 1000);
 }
 const productDetailsOverlay = document.getElementById('productDetailsOverlay');
 const productDetailsBody    = document.getElementById('productDetailsBody');
