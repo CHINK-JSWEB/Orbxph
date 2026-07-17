@@ -5,7 +5,6 @@ const path = require('path');
 const crypto = require('crypto');
 const multer = require('multer');
 const rateLimit = require('express-rate-limit');
-const { fileTypeFromBuffer } = require('file-type');
 const helmet = require('helmet');
 const cors = require('cors');
 
@@ -1043,11 +1042,16 @@ function uploadSingle(fieldName) {
   };
 }
 
-// Tunay na pag-verify ng file gamit ang magic bytes — hindi lang basta client-supplied mimetype
 async function isRealImage(buffer) {
-  const type = await fileTypeFromBuffer(buffer);
-  if (!type) return false;
-  return type.mime.startsWith('image/');
+  try {
+    const { fileTypeFromBuffer } = await import('file-type');
+    const type = await fileTypeFromBuffer(buffer);
+    if (!type) return false;
+    return type.mime.startsWith('image/');
+  } catch (err) {
+    console.error('[isRealImage ERROR]', err);
+    return false;
+  }
 }
 
 async function uploadScreenshotToSupabase(file) {
