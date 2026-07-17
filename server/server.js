@@ -1043,15 +1043,24 @@ function uploadSingle(fieldName) {
 }
 
 async function isRealImage(buffer) {
-  try {
-    const { fileTypeFromBuffer } = await import('file-type');
-    const type = await fileTypeFromBuffer(buffer);
-    if (!type) return false;
-    return type.mime.startsWith('image/');
-  } catch (err) {
-    console.error('[isRealImage ERROR]', err);
-    return false;
-  }
+  if (!buffer || buffer.length < 12) return false;
+
+  // JPEG: starts with FF D8 FF
+  if (buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF) return true;
+
+  // PNG: starts with 89 50 4E 47 0D 0A 1A 0A
+  if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47 &&
+      buffer[4] === 0x0D && buffer[5] === 0x0A && buffer[6] === 0x1A && buffer[7] === 0x0A) return true;
+
+  // GIF: starts with GIF87a or GIF89a
+  if (buffer[0] === 0x47 && buffer[1] === 0x49 && buffer[2] === 0x46 &&
+      buffer[3] === 0x38 && (buffer[4] === 0x37 || buffer[4] === 0x39) && buffer[5] === 0x61) return true;
+
+  // WEBP: starts with RIFF....WEBP
+  if (buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x46 &&
+      buffer[8] === 0x57 && buffer[9] === 0x45 && buffer[10] === 0x42 && buffer[11] === 0x50) return true;
+
+  return false;
 }
 
 async function uploadScreenshotToSupabase(file) {
