@@ -1248,6 +1248,9 @@ async function sendSupportMessage(){
   const fileToSend = supportSelectedFile;
   const messageToSend = text;
 
+const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 seconds max
+
   try{
     const fd = new FormData();
     fd.append('message', messageToSend);
@@ -1256,8 +1259,11 @@ async function sendSupportMessage(){
     const res = await fetch('/api/support/'+encodeURIComponent(currentUser)+'/message', {
       method: 'POST',
       headers: authHeaders(),
-      body: fd
+      body: fd,
+      signal: controller.signal
     });
+
+    clearTimeout(timeoutId);
 
     let data = {};
     try{ data = await res.json(); } catch(e){}
@@ -1277,8 +1283,14 @@ async function sendSupportMessage(){
     await loadSupportChat(true);
 
   } catch(e){
-    console.error('[SUPPORT SEND NETWORK ERROR]', e);
-    alert('Hindi makonekta sa server. I-check ang internet connection mo.');
+    clearTimeout(timeoutId);
+    if(e.name === 'AbortError'){
+      console.error('[SUPPORT SEND TIMEOUT]');
+      alert('Matagal sumagot ang server (baka mabagal na koneksyon o malaking file). Subukan ulit o gumamit ng mas maliit na larawan.');
+    } else {
+      console.error('[SUPPORT SEND NETWORK ERROR]', e);
+      alert('Hindi makonekta sa server. I-check ang internet connection mo.');
+    }
   } finally {
     supportSendBtn.disabled = false;
     supportSendBtn.textContent = 'Send';
