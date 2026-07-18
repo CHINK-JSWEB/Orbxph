@@ -1302,3 +1302,22 @@ supportInput.addEventListener('keydown', e => {
 });
 document.getElementById('chatImgClose').addEventListener('click', () => document.getElementById('chatImgOverlay').classList.remove('show'));
 document.getElementById('chatImgOverlay').addEventListener('click', e => { if(e.target.id === 'chatImgOverlay') e.currentTarget.classList.remove('show'); });
+// ── Welcome Marquee ─────────────────────────────────────────────
+(function(){
+  const messages = [
+    "🚀 Welcome to ORB-X PH — Invest smart, earn daily.",
+    "💎 Transparent packages, real-time tracking, secure withdrawals.",
+    "🔒 Your security is our priority — bank-level encryption on all transactions.",
+    "📈 Choose from Ordinary to Elite packages — grow at your own pace.",
+    "🤝 Refer friends and earn commissions across 3 levels.",
+    "☎️ Need help? Our Customer Service team is here for you 24/7.",
+  ];
+  const track = document.getElementById('welcomeMarqueeTrack');
+  if(!track) return;
+  const all = [...messages, ...messages];
+  track.innerHTML = all.map(m => `
+    <span class="welcome-marquee-item">
+      <span class="wm-icon">●</span>${m}
+    </span>
+  `).join('');
+})();
