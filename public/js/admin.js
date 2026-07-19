@@ -861,6 +861,63 @@ async function updateOrder(id,body){
   else renderRecentOrders();
 }
 
+// ── Manual Order Modal ─────────────────────────────────────────
+const manualOrderOverlay    = document.getElementById('manualOrderOverlay');
+const manualOrderSubmitBtn  = document.getElementById('manualOrderSubmitBtn');
+
+const openManualOrderBtn = document.getElementById('openManualOrderBtn');
+if(openManualOrderBtn) openManualOrderBtn.addEventListener('click', () => {
+  document.getElementById('manualOrderUsername').value = '';
+  document.getElementById('manualOrderMethod').value = '';
+  document.getElementById('manualOrderNotes').value = '';
+  document.getElementById('manualOrderError').style.display = 'none';
+  manualOrderOverlay.classList.add('show');
+});
+document.getElementById('manualOrderClose').addEventListener('click', () => manualOrderOverlay.classList.remove('show'));
+manualOrderOverlay.addEventListener('click', e => { if(e.target.id === 'manualOrderOverlay') e.currentTarget.classList.remove('show'); });
+
+manualOrderSubmitBtn.addEventListener('click', async () => {
+  const errEl    = document.getElementById('manualOrderError');
+  const username = document.getElementById('manualOrderUsername').value.trim();
+  const tier     = document.getElementById('manualOrderTier').value;
+  const method   = document.getElementById('manualOrderMethod').value.trim();
+  const notes    = document.getElementById('manualOrderNotes').value.trim();
+  errEl.style.display = 'none';
+
+  if(!username){ errEl.textContent = 'Ilagay ang username ng user.'; errEl.style.display = 'block'; return; }
+
+  if(!confirm(`I-create at i-approve ang ${tier} order (${username})? Hindi na ito mababago pagkatapos.`)) return;
+
+  manualOrderSubmitBtn.disabled = true;
+  manualOrderSubmitBtn.textContent = 'Creating...';
+
+  try{
+    const res = await fetch('/api/admin/orders/manual', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() },
+      body: JSON.stringify({ username, tier, method, notes })
+    });
+    const data = await res.json();
+    if(!res.ok){
+      errEl.textContent = data.error || 'May error sa paggawa ng order.';
+      errEl.style.display = 'block';
+      manualOrderSubmitBtn.disabled = false;
+      manualOrderSubmitBtn.textContent = 'Create & Approve Order';
+      return;
+    }
+    manualOrderOverlay.classList.remove('show');
+    await loadAllData();
+    const activeTab = document.querySelector('.sidebar-nav-item.active');
+    if(activeTab && activeTab.dataset.tab === 'orders') renderOrdersTab();
+    alert(`Successfully na-create at na-approve ang ${tier} order para kay ${username}.`);
+  } catch(e){
+    errEl.textContent = 'Hindi makonekta sa server.';
+    errEl.style.display = 'block';
+  }
+  manualOrderSubmitBtn.disabled = false;
+  manualOrderSubmitBtn.textContent = 'Create & Approve Order';
+});
+
 // ── Feedback modal ────────────────────────────────────────────
 let feedbackId=null;
 const feedbackOverlay=document.getElementById('feedbackOverlay');

@@ -1170,6 +1170,39 @@ app.get('/api/orders', requireAdmin, async (req, res) => {
   res.json(orders);
 });
 
+// ADMIN: Manually create + approve an order (para sa direct GCash payments na hindi dumaan sa QR Ph)
+app.post('/api/admin/orders/manual', requireAdmin, async (req, res) => {
+  const { username, tier, method, notes } = req.body || {};
+
+  if (!username || !tier)
+    return res.status(400).json({ error: 'Username at tier/package kailangan.' });
+
+  if (!VALID_PACKAGES.hasOwnProperty(tier))
+    return res.status(400).json({ error: 'Invalid na package/tier.' });
+
+  const user = await findUserByUsername(username);
+  if (!user) return res.status(404).json({ error: 'Walang user na may ganitong username.' });
+
+  const price = VALID_PACKAGES[tier];
+  const id = Date.now().toString(36);
+  const paymentMethod = method || 'Manual GCash';
+
+  await pool.query(
+    `INSERT INTO orders (id, username, tier, price, method, status, feedback)
+     VALUES ($1, $2, $3, $4, $5, 'pending', $6)`,
+    [id, user.username, tier, price, paymentMethod, notes || null]
+  );
+
+  try {
+    const approvedOrder = await approveOrderInternal(id);
+    console.log(`[MANUAL ORDER] Admin created + approved: ${user.username} -> ${tier} (₱${price}) via ${paymentMethod}`);
+    res.json({ success: true, order: approvedOrder });
+  } catch (err) {
+    console.error('[MANUAL ORDER ERROR]', err);
+    res.status(500).json({ error: 'Nagawa ang order pero may error sa pag-approve. I-check ang order sa listahan.' });
+  }
+});
+
 // ADMIN: All orders including archived (para sa income totals)
 app.get('/api/orders/all-including-archived', requireAdmin, async (req, res) => {
   const live = await getAllOrders();

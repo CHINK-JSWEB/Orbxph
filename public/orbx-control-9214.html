@@ -238,8 +238,50 @@
           <h1 class="page-title">Orders</h1>
           <p class="page-sub">Manage and review all customer orders.</p>
         </div>
+        <button class="btn-add-featured" id="openManualOrderBtn">+ Manual Order</button>
       </div>
       <div class="order-list" id="orderList"><p class="admin-empty">Loading...</p></div>
+    </div>
+
+    <!-- MANUAL ORDER MODAL -->
+    <div class="modal-overlay" id="manualOrderOverlay">
+      <div class="modal-box">
+        <div class="modal-head">
+          <span>Create Manual Order</span>
+          <button class="modal-close" id="manualOrderClose">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p style="font-size:12.5px;color:var(--muted);margin-bottom:16px;">Gamitin ito kung direktang nagbayad ang user via GCash sa iyo (hindi dumaan sa QR Ph o screenshot upload). Awtomatikong ma-a-approve ang order at magsisimula ang daily rewards + referral commissions.</p>
+          <div class="field">
+            <label>Username</label>
+            <div class="input-row"><input type="text" id="manualOrderUsername" placeholder="Eksaktong username ng user"></div>
+          </div>
+          <div class="field">
+            <label>Package / Tier</label>
+            <div class="input-row">
+              <select id="manualOrderTier" style="background:transparent;border:none;outline:none;color:var(--text);font-family:'Inter',sans-serif;font-size:13.5px;width:100%;">
+                <option value="Ordinary">Ordinary — ₱200</option>
+                <option value="Regular">Regular — ₱500</option>
+                <option value="Premium">Premium — ₱700</option>
+                <option value="Deluxe">Deluxe — ₱1,000</option>
+                <option value="Elite">Elite — ₱1,500</option>
+                <option value="Supreme">Supreme — ₱5,000</option>
+                <option value="Legendary">Legendary — ₱10,000</option>
+              </select>
+            </div>
+          </div>
+          <div class="field">
+            <label>Payment Method (optional)</label>
+            <div class="input-row"><input type="text" id="manualOrderMethod" placeholder="e.g. Direct GCash"></div>
+          </div>
+          <div class="field">
+            <label>Notes (optional)</label>
+            <div class="input-row"><input type="text" id="manualOrderNotes" placeholder="e.g. Paid directly to admin's GCash 07-19-2026"></div>
+          </div>
+          <div class="form-error" id="manualOrderError"></div>
+          <button class="btn-login" id="manualOrderSubmitBtn" style="margin-top:8px;">Create & Approve Order</button>
+        </div>
+      </div>
     </div>
 
     <!-- USERS -->
