@@ -490,6 +490,11 @@ setInterval(processDailyRewards, 60 * 1000);
 const SURVEY_REWARD = 0.50;
 const SURVEY_QUESTIONS_PER_DAY = 10;
 
+// ── Watch & Earn Ads ─────────────────────────────────────────
+const WATCH_AD_REWARD       = 0.30;  // ₱ per completed ad view
+const WATCH_AD_MIN_SECONDS  = 20;    // minimum na oras bago pwedeng i-claim
+const WATCH_AD_DAILY_LIMIT  = 15;    // max na claims per user per day
+
 function decodeHtmlEntities(str) {
   return str
     .replace(/&quot;/g, '"')
@@ -548,8 +553,85 @@ async function fetchAndCacheTodaysQuestions() {
     return existing.rows;
   }
 }
+// ── Watch & Earn Ads (PostgreSQL) ──────────────────────────────
+async function ensureWatchAdsTable() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS watch_ad_sessions (
+      id SERIAL PRIMARY KEY,
+      username TEXT NOT NULL,
+      started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      claimed BOOLEAN NOT NULL DEFAULT false,
+      claimed_at TIMESTAMPTZ
+    )
+  `);
+}
+ensureWatchAdsTable().catch(err => console.error('[WATCH ADS TABLE INIT ERROR]', err));
+
+async function getWatchAdClaimsToday(username) {
+  const r = await pool.query(
+    `SELECT COUNT(*) FROM watch_ad_sessions
+     WHERE LOWER(username) = LOWER($1) AND claimed = true AND claimed_at >= CURRENT_DATE`,
+    [username]
+  );
+  return parseInt(r.rows[0].count, 10);
+}
+
+// CLIENT: mag-start ng watch session (server issues timestamp)
+app.post('/api/watch-ads/:username/start', requireUser, async (req, res) => {
+  const username = req.params.username;
+  const claimsToday = await getWatchAdClaimsToday(username);
+  if (claimsToday >= WATCH_AD_DAILY_LIMIT) {
+    return res.status(429).json({ error: `Naabot mo na ang daily limit (${WATCH_AD_DAILY_LIMIT}) ng Watch & Earn ngayong araw.` });
+  }
+  const r = await pool.query(
+    `INSERT INTO watch_ad_sessions (username) VALUES ($1) RETURNING id, started_at`,
+    [username]
+  );
+  res.json({ success: true, sessionId: r.rows[0].id, minSeconds: WATCH_AD_MIN_SECONDS });
+});
+
+// CLIENT: i-claim ang reward pagkatapos ng minimum na oras
+app.post('/api/watch-ads/:username/claim', requireUser, async (req, res) => {
+  const username = req.params.username;
+  const { sessionId } = req.body || {};
+  if (!sessionId) return res.status(400).json({ error: 'Walang session ID.' });
+
+  const sessRes = await pool.query(
+    `SELECT * FROM watch_ad_sessions WHERE id = $1 AND LOWER(username) = LOWER($2)`,
+    [sessionId, username]
+  );
+  const session = sessRes.rows[0];
+  if (!session) return res.status(404).json({ error: 'Hindi mahanap ang ad session.' });
+  if (session.claimed) return res.status(409).json({ error: 'Na-claim na ang reward na ito.' });
+
+  const elapsedSeconds = (Date.now() - new Date(session.started_at).getTime()) / 1000;
+  if (elapsedSeconds < WATCH_AD_MIN_SECONDS) {
+    return res.status(400).json({ error: 'Hindi pa sapat ang oras ng panonood. Subukan ulit.' });
+  }
+
+  const claimsToday = await getWatchAdClaimsToday(username);
+  if (claimsToday >= WATCH_AD_DAILY_LIMIT) {
+    return res.status(429).json({ error: `Naabot mo na ang daily limit (${WATCH_AD_DAILY_LIMIT}) ngayong araw.` });
+  }
+
+  await pool.query(
+    `UPDATE watch_ad_sessions SET claimed = true, claimed_at = NOW() WHERE id = $1`,
+    [sessionId]
+  );
+  await creditWallet(username, WATCH_AD_REWARD, 'Watch & Earn ad view', 'watch_ad_reward');
+
+  res.json({ success: true, reward: WATCH_AD_REWARD, claimsToday: claimsToday + 1, dailyLimit: WATCH_AD_LIMIT_SAFE(WATCH_AD_DAILY_LIMIT) });
+});
+function WATCH_AD_LIMIT_SAFE(n){ return n; }
+
+// CLIENT: makuha ang status ngayong araw (para sa UI display)
+app.get('/api/watch-ads/:username/status', requireUser, async (req, res) => {
+  const claimsToday = await getWatchAdClaimsToday(req.params.username);
+  res.json({ claimsToday, dailyLimit: WATCH_AD_DAILY_LIMIT, reward: WATCH_AD_REWARD, minSeconds: WATCH_AD_MIN_SECONDS });
+});
 
 // ── Notifications (PostgreSQL) ────────────────────────────────
+
 async function createNotification(username, type, title, message) {
   await pool.query(
     'INSERT INTO notifications (username, type, title, message) VALUES ($1, $2, $3, $4)',

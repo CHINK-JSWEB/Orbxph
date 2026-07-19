@@ -1747,8 +1747,14 @@
       <h1>Investment Packages</h1>
       <p>Select the package that fits your investment goals.</p>
     </div>
-    <div class="product-shelf-wrap">
+<div class="product-shelf-wrap">
       <div class="product-shelf" id="productShelf"></div>
+    </div>
+
+    <!-- Adsterra Native Banner -->
+    <div style="margin-top:24px;">
+      <script async="async" data-cfasync="false" src="https://pl30440092.effectivecpmnetwork.com/02f82c80a8146774c06eab87b9477b88/invoke.js"></script>
+      <div id="container-02f82c80a8146774c06eab87b9477b88"></div>
     </div>
 
   </main>
@@ -2083,15 +2089,15 @@
       </div>
       <div class="modal-body">
         <div class="task-hub-list">
-          <div class="task-hub-item task-hub-item--soon">
-            <div class="task-hub-icon">
-              <svg viewBox="0 0 20 20" fill="none" width="20" height="20"><rect x="4" y="2" width="12" height="16" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M9 15h2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+<div class="task-hub-item task-hub-item--available" id="watchAdsTaskItem">
+            <div class="task-hub-icon task-hub-icon--available">
+              <svg viewBox="0 0 20 20" fill="none" width="20" height="20"><rect x="2" y="4" width="16" height="12" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M8 8l4 2-4 2V8z" fill="currentColor"/></svg>
             </div>
             <div class="task-hub-info">
-              <div class="task-hub-title">Install Games / Apps</div>
-              <div class="task-hub-desc">Install featured apps and earn ₱5.00 per install.</div>
+              <div class="task-hub-title">Watch Ads</div>
+              <div class="task-hub-desc" id="watchAdsTaskDesc">Watch a short ad and earn ₱0.30 per view.</div>
             </div>
-            <span class="task-hub-badge task-hub-badge--soon">SOON</span>
+            <span class="task-hub-badge task-hub-badge--available">AVAILABLE</span>
           </div>
           <div class="task-hub-item task-hub-item--soon">
             <div class="task-hub-icon">
@@ -2113,6 +2119,30 @@
             </div>
             <span class="task-hub-badge task-hub-badge--available">AVAILABLE</span>
           </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SURVEY QUESTIONS MODAL -->
+<!-- WATCH ADS MODAL -->
+  <div class="modal-overlay" id="watchAdsOverlay">
+    <div class="modal-box">
+      <div class="modal-head">
+        <span>Watch & Earn</span>
+        <button class="modal-close" id="watchAdsClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="survey-earned-banner" style="margin-bottom:16px;">
+          <span class="survey-earned-label" id="watchAdsCountLabel">0 / 0 views today</span>
+          <span class="survey-earned-val" id="watchAdsRewardLabel">&#8369;0.00</span>
+        </div>
+<div id="watchAdsBody">
+          <div style="background:#0a0e22;border:1px solid var(--border);border-radius:14px;padding:16px;text-align:center;margin-bottom:16px;">
+            <script async="async" data-cfasync="false" src="https://pl30440092.effectivecpmnetwork.com/02f82c80a8146774c06eab87b9477b88/invoke.js"></script>
+            <div id="container-02f82c80a8146774c06eab87b9477b88"></div>
+          </div>
+          <button class="survey-submit-btn" id="watchAdsStartBtn">Start Watching</button>
         </div>
       </div>
     </div>
@@ -2876,5 +2906,9 @@ setInterval(loadReferral, 30000);
 setInterval(loadWithdrawHistory, 20000);
 setInterval(updateLevelCounts, 30000);
 </script>
+
+<!-- Adsterra Social Bar -->
+<script src="https://pl30440093.effectivecpmnetwork.com/27/05/e5/2705e5d617997e50106658473e37985e.js"></script>
+
 </body>
 </html>

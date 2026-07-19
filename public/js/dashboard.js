@@ -1336,3 +1336,138 @@ document.getElementById('chatImgOverlay').addEventListener('click', e => { if(e.
     </span>
   `).join('');
 })();
+// ══════════════════════════════════════════════════════════════
+//  WATCH & EARN ADS
+// ══════════════════════════════════════════════════════════════
+const watchAdsOverlay   = document.getElementById('watchAdsOverlay');
+const watchAdsClose     = document.getElementById('watchAdsClose');
+const watchAdsBody      = document.getElementById('watchAdsBody');
+const watchAdsTaskItem  = document.getElementById('watchAdsTaskItem');
+let watchAdsCurrentSession = null;
+let watchAdsCountdownInterval = null;
+
+async function refreshWatchAdsStatus(){
+  try{
+    const res  = await fetch('/api/watch-ads/'+encodeURIComponent(currentUser)+'/status', { headers: authHeaders() });
+    const data = await res.json();
+    document.getElementById('watchAdsCountLabel').textContent = `${data.claimsToday} / ${data.dailyLimit} views today`;
+    document.getElementById('watchAdsRewardLabel').innerHTML = peso(data.reward) + ' each';
+    const descEl = document.getElementById('watchAdsTaskDesc');
+    if(descEl) descEl.textContent = `Watch a short ad and earn ${peso(data.reward).replace(/&#8369;/,'₱')} per view (${data.claimsToday}/${data.dailyLimit} today).`;
+    return data;
+  } catch(e){ return null; }
+}
+
+if(watchAdsTaskItem) watchAdsTaskItem.addEventListener('click', async () => {
+  closeTaskHub();
+  watchAdsOverlay.classList.add('show');
+  await refreshWatchAdsStatus();
+  renderWatchAdsStart();
+});
+if(watchAdsClose) watchAdsClose.addEventListener('click', () => {
+  watchAdsOverlay.classList.remove('show');
+  clearInterval(watchAdsCountdownInterval);
+});
+watchAdsOverlay.addEventListener('click', e => { if(e.target.id === 'watchAdsOverlay'){ watchAdsOverlay.classList.remove('show'); clearInterval(watchAdsCountdownInterval); } });
+
+function renderWatchAdsStart(){
+  watchAdsBody.innerHTML = `
+    <div style="background:#0a0e22;border:1px solid var(--border);border-radius:14px;padding:16px;text-align:center;margin-bottom:16px;">
+      <div id="watchAdsBannerSlot-${Date.now()}"></div>
+    </div>
+    <button class="survey-submit-btn" id="watchAdsStartBtn">Start Watching</button>
+  `;
+  // I-reinject ang Adsterra native banner script kada open ng modal
+  const bannerScript = document.createElement('script');
+  bannerScript.async = true;
+  bannerScript.setAttribute('data-cfasync', 'false');
+  bannerScript.src = 'https://pl30440092.effectivecpmnetwork.com/02f82c80a8146774c06eab87b9477b88/invoke.js';
+  const bannerContainer = document.createElement('div');
+  bannerContainer.id = 'container-02f82c80a8146774c06eab87b9477b88';
+  const slot = watchAdsBody.querySelector('div[id^="watchAdsBannerSlot-"]');
+  if(slot){ slot.appendChild(bannerContainer); slot.appendChild(bannerScript); }
+
+  const startBtn = document.getElementById('watchAdsStartBtn');
+  if(startBtn) startBtn.addEventListener('click', startWatchAdSession);
+}
+
+async function startWatchAdSession(){
+  const startBtn = document.getElementById('watchAdsStartBtn');
+  if(startBtn){ startBtn.disabled = true; startBtn.textContent = 'Starting...'; }
+  try{
+    const res  = await fetch('/api/watch-ads/'+encodeURIComponent(currentUser)+'/start', {
+      method: 'POST', headers: authHeaders()
+    });
+    const data = await res.json();
+    if(!res.ok){
+      alert(data.error || 'Hindi ma-start ang session.');
+      if(startBtn){ startBtn.disabled = false; startBtn.textContent = 'Start Watching'; }
+      return;
+    }
+    watchAdsCurrentSession = data.sessionId;
+    renderWatchAdsCountdown(data.minSeconds);
+  } catch(e){
+    alert('Hindi makonekta sa server.');
+    if(startBtn){ startBtn.disabled = false; startBtn.textContent = 'Start Watching'; }
+  }
+}
+
+function renderWatchAdsCountdown(seconds){
+  let remaining = seconds;
+  watchAdsBody.innerHTML = `
+    <div style="background:#0a0e22;border:1px solid rgba(77,166,255,0.3);border-radius:14px;padding:34px 16px;text-align:center;margin-bottom:16px;">
+      <div style="font-family:'Orbitron',sans-serif;font-weight:800;font-size:38px;color:var(--blue);margin-bottom:8px;" id="watchAdsCountdownNum">${remaining}</div>
+      <div style="font-size:12px;color:var(--muted);">Panoorin ang ad hanggang matapos ang countdown...</div>
+    </div>
+    <button class="survey-submit-btn" id="watchAdsClaimBtn" disabled>Please wait...</button>
+  `;
+  watchAdsCountdownInterval = setInterval(() => {
+    remaining -= 1;
+    const numEl = document.getElementById('watchAdsCountdownNum');
+    if(numEl) numEl.textContent = Math.max(remaining, 0);
+    if(remaining <= 0){
+      clearInterval(watchAdsCountdownInterval);
+      const claimBtn = document.getElementById('watchAdsClaimBtn');
+      if(claimBtn){
+        claimBtn.disabled = false;
+        claimBtn.textContent = 'Claim Reward';
+        claimBtn.addEventListener('click', claimWatchAdReward);
+      }
+    }
+  }, 1000);
+}
+
+async function claimWatchAdReward(){
+  const claimBtn = document.getElementById('watchAdsClaimBtn');
+  if(claimBtn){ claimBtn.disabled = true; claimBtn.textContent = 'Claiming...'; }
+  try{
+    const res  = await fetch('/api/watch-ads/'+encodeURIComponent(currentUser)+'/claim', {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ sessionId: watchAdsCurrentSession })
+    });
+    const data = await res.json();
+    if(!res.ok){
+      alert(data.error || 'Hindi ma-claim ang reward.');
+      renderWatchAdsStart();
+      return;
+    }
+    watchAdsBody.innerHTML = `
+      <div class="order-success">
+        <div class="order-success-badge">Reward Claimed</div>
+        <h3>+${peso(data.reward)}</h3>
+        <p>Salamat sa panonood! Bumalik ka mamaya para sa susunod na reward.</p>
+      </div>
+      <button class="survey-submit-btn" id="watchAdsAgainBtn" style="margin-top:14px;">Watch Another</button>
+    `;
+    document.getElementById('watchAdsAgainBtn').addEventListener('click', async () => {
+      await refreshWatchAdsStatus();
+      renderWatchAdsStart();
+    });
+    await refreshWatchAdsStatus();
+    if(typeof loadWallet === 'function') loadWallet();
+  } catch(e){
+    alert('Hindi makonekta sa server.');
+    renderWatchAdsStart();
+  }
+}
