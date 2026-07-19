@@ -865,13 +865,31 @@ async function updateOrder(id,body){
 const manualOrderOverlay    = document.getElementById('manualOrderOverlay');
 const manualOrderSubmitBtn  = document.getElementById('manualOrderSubmitBtn');
 
+async function populateManualOrderUsernames(){
+  const selectEl = document.getElementById('manualOrderUsername');
+  selectEl.innerHTML = '<option value="">Loading users...</option>';
+  try{
+    const res   = await fetch('/api/admin/users', { headers: { Authorization: 'Bearer ' + getToken() } });
+    const users = await res.json();
+    const sorted = users.slice().sort((a,b) => a.username.localeCompare(b.username));
+    if(!sorted.length){
+      selectEl.innerHTML = '<option value="">Walang registered users.</option>';
+      return;
+    }
+    selectEl.innerHTML = '<option value="">— Piliin ang username —</option>' +
+      sorted.map(u => `<option value="${u.username}">${u.username} (${u.phone || '—'})${u.blocked ? ' [BLOCKED]' : ''}</option>`).join('');
+  } catch(e){
+    selectEl.innerHTML = '<option value="">Error loading users.</option>';
+  }
+}
+
 const openManualOrderBtn = document.getElementById('openManualOrderBtn');
 if(openManualOrderBtn) openManualOrderBtn.addEventListener('click', () => {
-  document.getElementById('manualOrderUsername').value = '';
   document.getElementById('manualOrderMethod').value = '';
   document.getElementById('manualOrderNotes').value = '';
   document.getElementById('manualOrderError').style.display = 'none';
   manualOrderOverlay.classList.add('show');
+  populateManualOrderUsernames();
 });
 document.getElementById('manualOrderClose').addEventListener('click', () => manualOrderOverlay.classList.remove('show'));
 manualOrderOverlay.addEventListener('click', e => { if(e.target.id === 'manualOrderOverlay') e.currentTarget.classList.remove('show'); });
