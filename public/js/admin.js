@@ -973,6 +973,9 @@ const sortedUsers = users.slice().sort((a,b) => (b.balance||0) - (a.balance||0))
             <span><button class="reset-pass-btn" data-username="${u.username}">
               Reset Pass
             </button></span>
+            <span><button class="reset-pass-btn" style="background:rgba(255,80,80,0.08);border-color:rgba(255,80,80,0.3);color:#ff8080;" data-username="${u.username}" data-delete-user="1">
+              Delete
+            </button></span>
           </div>`).join('')}
       </div>`;
     list.querySelectorAll('.block-btn').forEach(btn=>{
@@ -982,8 +985,27 @@ const sortedUsers = users.slice().sort((a,b) => (b.balance||0) - (a.balance||0))
         loadUsers(); renderStats();
       });
     });
-    list.querySelectorAll('.reset-pass-btn').forEach(btn=>{
+list.querySelectorAll('.reset-pass-btn').forEach(btn=>{
       btn.addEventListener('click',async()=>{
+        if(btn.dataset.deleteUser){
+          const confirmText = prompt(`Para kumpirmahin ang PERMANENTENG pagbura kay ${btn.dataset.username} (kasama ang lahat ng orders, wallet, referrals), i-type ang username niya:`);
+          if(confirmText !== btn.dataset.username){
+            if(confirmText !== null) alert('Hindi tumugma ang username. Kinansela ang pagbura.');
+            return;
+          }
+          try{
+            const r = await fetch('/api/admin/users/'+encodeURIComponent(btn.dataset.username),{
+              method:'DELETE',
+              headers:{Authorization:'Bearer '+getToken()}
+            });
+            const d = await r.json();
+            if(!r.ok){ alert(d.error||'May error sa pagbura.'); return; }
+            alert('Successfully na-delete si '+btn.dataset.username+'.');
+            loadUsers();
+            renderStats();
+          } catch(e){ alert('Hindi makonekta sa server.'); }
+          return;
+        }
         const newPass = prompt('Ilagay ang bagong password para kay '+btn.dataset.username+' (min. 6 characters):');
         if(!newPass) return;
         if(newPass.length<6){ alert('Minimum 6 characters ang password.'); return; }

@@ -810,6 +810,52 @@ app.patch('/api/admin/users/:username/block', requireAdmin, async (req, res) => 
   res.json({ success: true, blocked: newBlocked });
 });
 
+// ADMIN: Permanently delete a user account + all related data
+app.delete('/api/admin/users/:username', requireAdmin, async (req, res) => {
+  const user = await findUserByUsername(req.params.username);
+  if (!user) return res.status(404).json({ error: 'User not found.' });
+
+  const username = user.username;
+
+  try {
+    // Sunud-sunod na burahin ang lahat ng related data (foreign key safe order)
+    await pool.query('DELETE FROM survey_responses WHERE LOWER(username) = LOWER($1)', [username]);
+    await pool.query('DELETE FROM task_logs WHERE LOWER(username) = LOWER($1)', [username]);
+    await pool.query('DELETE FROM daily_logs WHERE LOWER(username) = LOWER($1)', [username]);
+    await pool.query('DELETE FROM notifications WHERE LOWER(username) = LOWER($1)', [username]);
+    await pool.query('DELETE FROM wallet_transactions WHERE LOWER(username) = LOWER($1)', [username]);
+    await pool.query('DELETE FROM withdrawals WHERE LOWER(username) = LOWER($1)', [username]);
+    await pool.query('DELETE FROM archived_orders WHERE LOWER(username) = LOWER($1)', [username]);
+    await pool.query('DELETE FROM orders WHERE LOWER(username) = LOWER($1)', [username]);
+
+    // Referral invites — parehong bilang referrer at bilang invited
+    await pool.query('DELETE FROM referral_invites WHERE LOWER(referrer_username) = LOWER($1) OR LOWER(invited_username) = LOWER($1)', [username]);
+    await pool.query('DELETE FROM referrals WHERE LOWER(username) = LOWER($1)', [username]);
+
+    // Support conversation + messages
+    const convoRes = await pool.query('SELECT id FROM support_conversations WHERE LOWER(username) = LOWER($1)', [username]);
+    for (const convo of convoRes.rows) {
+      await pool.query('DELETE FROM support_messages WHERE conversation_id = $1', [convo.id]);
+    }
+    await pool.query('DELETE FROM support_conversations WHERE LOWER(username) = LOWER($1)', [username]);
+
+    // Wallet
+    await pool.query('DELETE FROM wallets WHERE LOWER(username) = LOWER($1)', [username]);
+
+    // Kung may ibang users na "referred_by" ang binurang user, i-clear ito (huwag silang masira)
+    await pool.query('UPDATE users SET referred_by = NULL WHERE LOWER(referred_by) = LOWER($1)', [username]);
+
+    // Sa wakas, ang user record mismo
+    await pool.query('DELETE FROM users WHERE LOWER(username) = LOWER($1)', [username]);
+
+    console.log(`[ADMIN DELETE USER] ${username} at lahat ng related data ay binura.`);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[DELETE USER ERROR]', err);
+    res.status(500).json({ error: 'May error sa pagbura ng user. Subukan ulit.' });
+  }
+});
+
 // ADMIN: Reset a user's password
 app.patch('/api/admin/users/:username/reset-password', requireAdmin, async (req, res) => {
   const { newPassword } = req.body || {};
