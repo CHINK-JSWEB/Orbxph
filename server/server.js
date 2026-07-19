@@ -84,7 +84,7 @@ if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 app.use((req, res, next) => {
   // Skip JSON parsing sa webhook route — kailangan natin ang raw body para sa signature verification
   if (req.originalUrl === '/api/webhooks/paymongo') return next();
-  express.json()(req, res, next);
+  express.json({ limit: '100kb' })(req, res, next);
 });
 app.use(express.static(path.join(__dirname, '..', 'public')));
 app.use('/uploads', express.static(UPLOADS_DIR));
@@ -121,6 +121,13 @@ function readJSON(file, fallback) {
   try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch(e) { return fallback; }
 }
 function writeJSON(file, data) { fs.writeFileSync(file, JSON.stringify(data, null, 2)); }
+
+// ── Input validation helper ────────────────────────────────────
+function isValidLength(str, min, max) {
+  if (typeof str !== 'string') return false;
+  const len = str.trim().length;
+  return len >= min && len <= max;
+}
 
 // ── Users (PostgreSQL) ────────────────────────────────────────
 const pool = require('./db');
@@ -821,8 +828,14 @@ app.post('/api/signup', authLimiter, async (req, res) => {
   const { username, phone: rawPhone, password, referralCode } = req.body || {};
   if (!username || !rawPhone || !password)
     return res.status(400).json({ error: 'Lahat ng fields kailangan punan.' });
-  if (password.length < 6)
-    return res.status(400).json({ error: 'Dapat hindi bababa sa 6 characters ang password.' });
+  if (!isValidLength(username, 3, 30))
+    return res.status(400).json({ error: 'Ang username ay dapat 3-30 characters lang.' });
+  if (!/^[a-zA-Z0-9_.]+$/.test(username.trim()))
+    return res.status(400).json({ error: 'Ang username ay letters, numbers, underscore, at period lang.' });
+  if (password.length < 6 || password.length > 100)
+    return res.status(400).json({ error: 'Dapat 6-100 characters ang password.' });
+  if (referralCode && !isValidLength(referralCode, 1, 50))
+    return res.status(400).json({ error: 'Invalid na referral code.' });
   const phone = normalizePhone(rawPhone);
 
   const existingUsername = await findUserByUsername(username);
@@ -1179,6 +1192,11 @@ app.post('/api/admin/orders/manual', requireAdmin, async (req, res) => {
 
   if (!VALID_PACKAGES.hasOwnProperty(tier))
     return res.status(400).json({ error: 'Invalid na package/tier.' });
+
+  if (method && method.length > 100)
+    return res.status(400).json({ error: 'Masyadong mahaba ang payment method.' });
+  if (notes && notes.length > 500)
+    return res.status(400).json({ error: 'Masyadong mahaba ang notes.' });
 
   const user = await findUserByUsername(username);
   if (!user) return res.status(404).json({ error: 'Walang user na may ganitong username.' });
@@ -1718,6 +1736,10 @@ app.post('/api/admin/broadcast', requireAdmin, async (req, res) => {
   const { title, message, usernames } = req.body || {};
   if (!title || !message)
     return res.status(400).json({ error: 'Title and message are required.' });
+  if (!isValidLength(title, 1, 150))
+    return res.status(400).json({ error: 'Title must be 1-150 characters.' });
+  if (!isValidLength(message, 1, 2000))
+    return res.status(400).json({ error: 'Message must be 1-2000 characters.' });
 
   let targets = usernames;
   if (!targets || !targets.length) {
@@ -1746,6 +1768,13 @@ app.post('/api/withdraw', submitLimiter, requireUser, async (req, res) => {
 
   if (!username || !accountNumber || !accountName)
     return res.status(400).json({ error: 'Lahat ng fields kailangan punan.' });
+
+  if (!isValidLength(accountNumber, 5, 50))
+    return res.status(400).json({ error: 'Invalid na account number.' });
+  if (!isValidLength(accountName, 2, 100))
+    return res.status(400).json({ error: 'Invalid na account name.' });
+  if (notes && notes.length > 500)
+    return res.status(400).json({ error: 'Masyadong mahaba ang notes. Max 500 characters.' });
 
   const amt = parseFloat(amount);
   if (!amt || isNaN(amt) || amt <= 0)
