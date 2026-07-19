@@ -643,7 +643,7 @@
   box-shadow: 0 0 12px var(--pc-accent, var(--blue));
 }
 .product-card .pc-image {
-  width: 100%; aspect-ratio: 4/3; object-fit: cover; object-position: center; display: block;
+  width: 100%; aspect-ratio: 4/3; object-fit: contain; object-position: center; display: block;
   transition: transform .6s cubic-bezier(.2,.7,.3,1);
   position: relative; z-index: 1;
 }
