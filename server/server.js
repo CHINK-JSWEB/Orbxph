@@ -1085,11 +1085,13 @@ async function deleteScreenshotFromSupabase(screenshotUrl) {
 }
 
 const VALID_PACKAGES = {
-  'Ordinary': 200,
-  'Regular':  500,
-  'Premium':  700,
-  'Deluxe':   1000,
-  'Elite':    1500,
+  'Ordinary':  200,
+  'Regular':   500,
+  'Premium':   700,
+  'Deluxe':    1000,
+  'Elite':     1500,
+  'Supreme':   5000,
+  'Legendary': 10000,
 };
 
 app.post('/api/orders', submitLimiter, uploadSingle('screenshot'), requireUser, async (req, res) => {

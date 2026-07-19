@@ -79,14 +79,18 @@ carouselEl.addEventListener('mouseup',    e => dragEnd(e.clientX));
 
 // ── Products ──────────────────────────────────────────────────
 const PRODUCTS = [
-  { tier: 'Ordinary', price: 200,  image: 'assets/products/product1.png', desc: 'Entry-level package, perfect for getting started.' },
-  { tier: 'Regular',  price: 500,  image: 'assets/products/product2.png', desc: 'A step up with more value for everyday needs.' },
-  { tier: 'Premium',  price: 700,  image: 'assets/products/product3.png', desc: 'Our most popular option, balanced in price and value.' },
-  { tier: 'Deluxe',   price: 1000, image: 'assets/products/product4.png', desc: 'Designed for those who want extra coverage.' },
-  { tier: 'Elite',    price: 1500, image: 'assets/products/product5.png', desc: 'The complete package — our top tier offering.' },
+  { tier: 'Ordinary', price: 200,  image: 'assets/products/product1.png', desc: 'Entry-level package, perfect for getting started.', accent: '#8a94b8' },
+  { tier: 'Regular',  price: 500,  image: 'assets/products/product2.png', desc: 'A step up with more value for everyday needs.', accent: '#4da6ff' },
+  { tier: 'Premium',  price: 700,  image: 'assets/products/product3.png', desc: 'Our most popular option, balanced in price and value.', accent: '#9b6bff' },
+  { tier: 'Deluxe',   price: 1000, image: 'assets/products/product4.png', desc: 'Designed for those who want extra coverage.', accent: '#ffc857' },
+  { tier: 'Elite',    price: 1500, image: 'assets/products/product5.png', desc: 'The complete package — our top tier offering.', accent: '#ff6b6b' },
+{ tier: 'Supreme',  price: 5000,  image: 'assets/products/product6.png', desc: 'Built for serious growth — higher returns, higher standing.', accent: '#00e0c6' },
+  { tier: 'Legendary',price: 10000, image: 'assets/products/product7.png', desc: 'Our ultimate tier — maximum daily rate and top-level rewards.', accent: '#ffd700' },
 ];
 const DAILY_RATE_PERCENT      = 0.10; // tugma sa DAILY_REWARD_RATE sa server.js
 const BASE_L1_COMMISSION_RATE = 0.25; // Member/Regular rank L1 rate sa server.js
+
+const POPULAR_TAG_ICON = `<svg viewBox="0 0 20 20" fill="currentColor" width="12" height="12"><path d="M10 1.5l2.4 4.9 5.4.8-3.9 3.8.9 5.4L10 13.8l-4.8 2.6.9-5.4-3.9-3.8 5.4-.8L10 1.5z"/></svg>`;
 
 const shelf = document.getElementById('productShelf');
 PRODUCTS.forEach((p, index) => {
@@ -97,9 +101,10 @@ PRODUCTS.forEach((p, index) => {
   card.className = 'product-card';
   card.dataset.index = index;
   card.style.setProperty('--pc-delay', (index * 0.08) + 's');
+  card.style.setProperty('--pc-accent', p.accent);
   card.innerHTML = `
     <div class="pc-image-wrap">
-      ${isPopular ? '<span class="pc-badge">⭐ Most Popular</span>' : ''}
+      ${isPopular ? `<span class="pc-badge">${POPULAR_TAG_ICON} Most Popular</span>` : ''}
       <img class="pc-image" src="${p.image}" alt="${p.tier}">
     </div>
     <div class="pc-body">
@@ -1304,20 +1309,30 @@ document.getElementById('chatImgClose').addEventListener('click', () => document
 document.getElementById('chatImgOverlay').addEventListener('click', e => { if(e.target.id === 'chatImgOverlay') e.currentTarget.classList.remove('show'); });
 // ── Welcome Marquee ─────────────────────────────────────────────
 (function(){
+  const WM_ICONS = {
+    rocket: `<svg viewBox="0 0 20 20" fill="none"><path d="M10 2l3 3v4l3 3-2 2-3-3H7l-3 3-2-2 3-3V6l3-3z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><circle cx="10" cy="8" r="1.3" fill="currentColor"/></svg>`,
+    shield: `<svg viewBox="0 0 20 20" fill="none"><path d="M10 2l6 2.4v4.8c0 4-2.6 6.8-6 8.6-3.4-1.8-6-4.6-6-8.6V4.4L10 2z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M7.2 10l1.8 1.8 3.8-3.8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    lock: `<svg viewBox="0 0 20 20" fill="none"><rect x="4" y="9" width="12" height="9" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M7 9V6a3 3 0 016 0v3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>`,
+    chart: `<svg viewBox="0 0 20 20" fill="none"><path d="M3 17V9M8 17V4M13 17v-7M18 17V2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>`,
+    users: `<svg viewBox="0 0 20 20" fill="none"><circle cx="8" cy="6" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M2 17c0-3.314 2.686-5 6-5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="15" cy="13" r="2.5" stroke="currentColor" stroke-width="1.4"/><path d="M15 10.5V13l1.5 1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    support: `<svg viewBox="0 0 20 20" fill="none"><path d="M3 11v-1a7 7 0 0114 0v1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><rect x="2.3" y="11" width="3.4" height="4.6" rx="1.2" stroke="currentColor" stroke-width="1.4"/><rect x="14.3" y="11" width="3.4" height="4.6" rx="1.2" stroke="currentColor" stroke-width="1.4"/><path d="M15.5 15.6v.4a3 3 0 01-3 3h-1.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>`,
+  };
+
   const messages = [
-    "🚀 Welcome to ORB-X PH — Invest smart, earn daily.",
-    "💎 Transparent packages, real-time tracking, secure withdrawals.",
-    "🔒 Your security is our priority — bank-level encryption on all transactions.",
-    "📈 Choose from Ordinary to Elite packages — grow at your own pace.",
-    "🤝 Refer friends and earn commissions across 3 levels.",
-    "☎️ Need help? Our Customer Service team is here for you 24/7.",
+    { icon: 'rocket',  text: 'Welcome to ORB-X PH — Invest smart, earn daily.' },
+    { icon: 'shield',  text: 'Transparent packages, real-time tracking, secure withdrawals.' },
+    { icon: 'lock',    text: 'Your security is our priority — bank-level encryption on all transactions.' },
+    { icon: 'chart',   text: 'Choose from Ordinary to Elite packages — grow at your own pace.' },
+    { icon: 'users',   text: 'Refer friends and earn commissions across 3 levels.' },
+    { icon: 'support', text: 'Need help? Our Customer Service team is here for you 24/7.' },
   ];
+
   const track = document.getElementById('welcomeMarqueeTrack');
   if(!track) return;
   const all = [...messages, ...messages];
   track.innerHTML = all.map(m => `
     <span class="welcome-marquee-item">
-      <span class="wm-icon">●</span>${m}
+      <span class="wm-icon">${WM_ICONS[m.icon] || ''}</span>${m.text}
     </span>
   `).join('');
 })();
