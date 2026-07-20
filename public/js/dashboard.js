@@ -1390,20 +1390,11 @@ async function startWatchAdSession(){
 
 function renderWatchAdsPlaying(seconds){
   watchAdsBody.innerHTML = `
-    <div style="background:#0a0e22;border:1px solid rgba(77,166,255,0.3);border-radius:14px;padding:16px;text-align:center;margin-bottom:16px;">
-      <div id="watchAdsBannerSlot-${Date.now()}"></div>
-      <div style="font-size:12px;color:var(--muted);margin-top:12px;">Ad is playing...</div>
+    <div style="background:#0a0e22;border:1px solid rgba(77,166,255,0.3);border-radius:14px;padding:12px;text-align:center;margin-bottom:16px;overflow:hidden;">
+      <iframe src="ad-frame.html?t=${Date.now()}" style="width:100%;height:220px;border:none;border-radius:10px;display:block;"></iframe>
+      <div style="font-size:12px;color:var(--muted);margin-top:10px;">Ad is playing...</div>
     </div>
   `;
-  // I-reinject ang Adsterra native banner script kada open ng modal
-  const bannerScript = document.createElement('script');
-  bannerScript.async = true;
-  bannerScript.setAttribute('data-cfasync', 'false');
-  bannerScript.src = 'https://pl30440092.effectivecpmnetwork.com/02f82c80a8146774c06eab87b9477b88/invoke.js';
-  const bannerContainer = document.createElement('div');
-  bannerContainer.id = 'container-02f82c80a8146774c06eab87b9477b88';
-  const slot = watchAdsBody.querySelector('div[id^="watchAdsBannerSlot-"]');
-  if(slot){ slot.appendChild(bannerContainer); slot.appendChild(bannerScript); }
 
   clearInterval(watchAdsCountdownInterval);
   watchAdsCountdownInterval = setTimeout(() => {
