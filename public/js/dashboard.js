@@ -582,22 +582,135 @@ function renderPaymentMethods(product){
     <div class="order-summary-row"><span>Amount</span><span>&#8369;${product.price.toLocaleString()}</span></div>
     <div class="pm-label">Choose Payment Method</div>
     <div class="pm-grid">
-      <button class="pm-card" id="pmGcash">
+      <button class="pm-card" id="pmGcashQr">
         <div class="pm-logo-slot"><img src="assets/payment/gcash.png" alt="GCash" onerror="this.style.display='none';this.parentElement.classList.add('empty')"></div>
-        <span class="pm-name">GCash</span>
+        <span class="pm-name">GCash QR Ph</span>
+      </button>
+      <button class="pm-card" id="pmGcashManual">
+        <div class="pm-logo-slot"><img src="assets/payment/gcash.png" alt="GCash" onerror="this.style.display='none';this.parentElement.classList.add('empty')"></div>
+        <span class="pm-name">Manual GCash</span>
       </button>
       <div class="pm-card disabled">
         <span class="pm-soon">SOON</span>
         <div class="pm-logo-slot"><img src="assets/payment/maya.jpg" alt="Maya" onerror="this.style.display='none';this.parentElement.classList.add('empty')"></div>
         <span class="pm-name">Maya</span>
       </div>
-      <div class="pm-card disabled">
-        <span class="pm-soon">SOON</span>
-        <div class="pm-logo-slot"><img src="assets/payment/bank.jpg" alt="Bank Transfer" onerror="this.style.display='none';this.parentElement.classList.add('empty')"></div>
-        <span class="pm-name">Bank Transfer</span>
-      </div>
+    </div>
+    <div class="order-confirm-note" style="margin-top:14px;">
+      <strong>GCash QR Ph:</strong> i-scan ang QR code, automatic na ma-confirm ang order mo.<br><br>
+      <strong>Manual GCash:</strong> para sa direktang pagpapadala sa aming GCash account — mas mabagal (kailangan ng admin approval), pero maganda kung nalilito ka sa QR scanning.
     </div>`;
-  document.getElementById('pmGcash').addEventListener('click', ()=>renderGcashDetails(product));
+  document.getElementById('pmGcashQr').addEventListener('click', ()=>renderGcashDetails(product));
+  document.getElementById('pmGcashManual').addEventListener('click', ()=>renderManualGcashDetails(product));
+}
+
+const ORBX_GCASH_NUMBER = '0955-550-4904';
+const ORBX_GCASH_NAME   = 'J****L S.';
+
+let manualGcashFile = null;
+
+function renderManualGcashDetails(product){
+  manualGcashFile = null;
+  orderBody.innerHTML = `
+    <button class="pm-back" id="pmBackManual">&larr; Back to payment methods</button>
+    <div class="gcash-panel">
+      <div class="pm-logo-slot lg"><img src="assets/payment/gcash.png" alt="GCash" onerror="this.style.display='none';this.parentElement.classList.add('empty')"></div>
+      <div class="gcash-label">Send Payment via GCash</div>
+      <div class="gcash-amount">&#8369;${product.price.toLocaleString()}</div>
+      <div class="gcash-row">
+        <div>
+          <div class="gcash-row-label">GCash Number</div>
+          <div class="gcash-row-value">${ORBX_GCASH_NUMBER}</div>
+        </div>
+        <button class="copy-btn" id="copyGcashNum">Copy</button>
+      </div>
+      <div class="gcash-row">
+        <div>
+          <div class="gcash-row-label">Account Name</div>
+          <div class="gcash-row-value">${ORBX_GCASH_NAME}</div>
+        </div>
+      </div>
+    </div>
+    <div class="upload-warning">
+      Pagkatapos magbayad, mag-upload ng screenshot ng iyong successful transaction bilang patunay. Ire-review ito ng admin bago ma-approve.
+    </div>
+    <label class="upload-drop" id="manualGcashDrop">
+      <span id="manualGcashDropLabel">I-tap para mag-upload ng screenshot</span>
+      <input type="file" id="manualGcashFileInput" accept="image/*" hidden>
+    </label>
+    <div class="form-error" id="manualGcashError"></div>
+    <button class="wallet-withdraw-btn" id="manualGcashSubmitBtn" style="margin-top:14px;width:100%;">Submit Order</button>
+  `;
+
+  document.getElementById('pmBackManual').addEventListener('click', () => renderPaymentMethods(product));
+
+  const copyBtn = document.getElementById('copyGcashNum');
+  copyBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(ORBX_GCASH_NUMBER).then(() => {
+      copyBtn.textContent = 'Copied!';
+      setTimeout(() => copyBtn.textContent = 'Copy', 1500);
+    });
+  });
+
+  const dropZone   = document.getElementById('manualGcashDrop');
+  const fileInput  = document.getElementById('manualGcashFileInput');
+  dropZone.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files[0];
+    if(!file) return;
+    if(!file.type.startsWith('image/')){
+      alert('Larawan lang (JPG/PNG) ang pwedeng i-upload.');
+      fileInput.value = '';
+      return;
+    }
+    if(file.size > 8 * 1024 * 1024){
+      alert('Masyadong malaki ang larawan. Max 8MB lang.');
+      fileInput.value = '';
+      return;
+    }
+    manualGcashFile = file;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      dropZone.innerHTML = `<img class="upload-preview" src="${ev.target.result}" alt="preview">`;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  document.getElementById('manualGcashSubmitBtn').addEventListener('click', async () => {
+    const errEl = document.getElementById('manualGcashError');
+    errEl.style.display = 'none';
+    if(!manualGcashFile){
+      errEl.textContent = 'Mag-upload muna ng screenshot ng payment.';
+      errEl.style.display = 'block';
+      return;
+    }
+    const submitBtn = document.getElementById('manualGcashSubmitBtn');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Submitting...';
+    try{
+      const fd = new FormData();
+      fd.append('username', currentUser);
+      fd.append('tier', product.tier);
+      fd.append('method', 'Manual GCash');
+      fd.append('screenshot', manualGcashFile);
+      const res  = await fetch('/api/orders', { method: 'POST', headers: authHeaders(), body: fd });
+      const data = await res.json();
+      if(!res.ok){
+        errEl.textContent = data.error || 'May problema sa pag-submit.';
+        errEl.style.display = 'block';
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Submit Order';
+        return;
+      }
+      orderBody.innerHTML = `<div class="order-success"><div class="order-success-badge">Submitted</div><h3>Order Submitted</h3><p>Naka-pending na ang order mo para sa ${product.tier}. Ire-review ito ng admin. Salamat, ${currentUser}!</p></div>`;
+      loadOrdersSummary();
+    } catch(e){
+      errEl.textContent = 'Hindi makonekta sa server.';
+      errEl.style.display = 'block';
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Submit Order';
+    }
+  });
 }
 
 let qrPollInterval = null;
@@ -688,9 +801,10 @@ function startPollingPaymentStatus(product, orderId){
       const res  = await fetch('/api/orders/paymongo/status/'+encodeURIComponent(orderId), { headers: authHeaders() });
       const data = await res.json();
 
-      if(data.status === 'approved'){
+if(data.status === 'approved'){
         clearQrPoll();
-        orderBody.innerHTML = `<div class="order-success"><div class="order-success-badge">Paid</div><h3>Payment Confirmed!</h3><p>Na-approve na ang order mo para sa ${product.tier}. Salamat, ${currentUser}!</p></div>`;
+        orderOverlay.classList.remove('show');
+        launchOrderCelebration(product.tier, product.price);
         loadOrdersSummary();
         loadWallet();
       }
@@ -1436,3 +1550,101 @@ if(!res.ok){
     if(retryBtn) retryBtn.addEventListener('click', startWatchAdSession);
   }
 }
+// ══════════════════════════════════════════════════════════════
+//  ORDER CELEBRATION (rockets + sparkles)
+// ══════════════════════════════════════════════════════════════
+const ROCKET_SVG = `
+<svg viewBox="0 0 28 44" fill="none" width="30" height="46" xmlns="http://www.w3.org/2000/svg">
+  <path d="M14 2C14 2 21 9 21 22C21 29 18 34 14 38C10 34 7 29 7 22C7 9 14 2 14 2Z"
+        fill="url(#rbCel)" stroke="rgba(200,220,255,0.5)" stroke-width="0.6"/>
+  <ellipse cx="14" cy="17" rx="4.2" ry="4.6" fill="url(#rwCel)" stroke="rgba(150,200,255,0.6)" stroke-width="0.5"/>
+  <path d="M7 24 L1 32 L6 30 Z" fill="rgba(160,200,240,0.8)" stroke="rgba(140,185,230,0.4)" stroke-width="0.4"/>
+  <path d="M21 24 L27 32 L22 30 Z" fill="rgba(160,200,240,0.8)" stroke="rgba(140,185,230,0.4)" stroke-width="0.4"/>
+  <path d="M9 8 C11 5 17 5 19 8" stroke="rgba(255,255,255,0.4)" stroke-width="1" stroke-linecap="round"/>
+  <defs>
+    <linearGradient id="rbCel" x1="7" y1="2" x2="21" y2="38" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#e8f0ff"/>
+      <stop offset="45%" stop-color="#a0c8ff"/>
+      <stop offset="100%" stop-color="#5878e0"/>
+    </linearGradient>
+    <radialGradient id="rwCel" cx="40%" cy="35%">
+      <stop offset="0%" stop-color="#eef8ff"/>
+      <stop offset="60%" stop-color="#90c8ff"/>
+      <stop offset="100%" stop-color="#3880d0"/>
+    </radialGradient>
+  </defs>
+</svg>`;
+
+const SPARKLE_SVG = `<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 0l2 7 8 3-8 3-2 7-2-7-8-3 8-3 2-7z" fill="currentColor"/></svg>`;
+
+const SPARKLE_COLORS = ['#ffd966', '#c8b0ff', '#4da6ff', '#7CFFB2', '#ff9d9d'];
+
+function launchOrderCelebration(tier, price){
+  const overlay = document.getElementById('celebrationOverlay');
+  const field   = document.getElementById('celebrationSparkleField');
+  const msgEl   = document.getElementById('celebrationMsg');
+  const tierEl  = document.getElementById('celebrationTierPill');
+  if(!overlay) return;
+
+  msgEl.innerHTML = `Your <strong>${escapeHtml(tier)}</strong> package order has been successfully confirmed and is now active on your account.`;
+  tierEl.innerHTML = `${escapeHtml(tier)} &middot; &#8369;${Number(price).toLocaleString()}`;
+
+  // Clear previous sparkles/rockets
+  field.innerHTML = '';
+
+  // Generate falling sparkles
+  const sparkleCount = 34;
+  for(let i = 0; i < sparkleCount; i++){
+    const el = document.createElement('div');
+    el.className = 'celebration-sparkle';
+    const size  = 8 + Math.random() * 14;
+    const left  = Math.random() * 100;
+    const delay = Math.random() * 1.8;
+    const dur   = 2.6 + Math.random() * 2.2;
+    const color = SPARKLE_COLORS[Math.floor(Math.random() * SPARKLE_COLORS.length)];
+    el.style.left = left + 'vw';
+    el.style.width = size + 'px';
+    el.style.height = size + 'px';
+    el.style.color = color;
+    el.style.animationDelay = delay + 's';
+    el.style.animationDuration = dur + 's';
+    el.innerHTML = SPARKLE_SVG;
+    field.appendChild(el);
+  }
+
+  // Generate launching rockets
+  const rocketCount = 4;
+  for(let i = 0; i < rocketCount; i++){
+    const el = document.createElement('div');
+    el.className = 'celebration-rocket';
+    const left  = 10 + (i * 25) + (Math.random() * 10 - 5);
+    const delay = i * 0.35;
+    const drift = (Math.random() * 60 - 30) + 'px';
+    el.style.left = left + 'vw';
+    el.style.setProperty('--rocket-drift', drift);
+    el.style.animationDelay = delay + 's';
+    el.style.animationDuration = '3.2s';
+    el.innerHTML = ROCKET_SVG + '<div class="celebration-rocket-trail"></div>';
+    field.appendChild(el);
+  }
+
+  overlay.classList.add('show');
+
+  // Auto-dismiss after 6 seconds
+  clearTimeout(overlay._dismissTimer);
+  overlay._dismissTimer = setTimeout(() => closeCelebration(), 6000);
+}
+
+function closeCelebration(){
+  const overlay = document.getElementById('celebrationOverlay');
+  if(!overlay) return;
+  overlay.classList.remove('show');
+  clearTimeout(overlay._dismissTimer);
+}
+
+const celebrationCloseBtn = document.getElementById('celebrationCloseBtn');
+if(celebrationCloseBtn) celebrationCloseBtn.addEventListener('click', closeCelebration);
+const celebrationOverlayEl = document.getElementById('celebrationOverlay');
+if(celebrationOverlayEl) celebrationOverlayEl.addEventListener('click', e => {
+  if(e.target.id === 'celebrationOverlay') closeCelebration();
+});
