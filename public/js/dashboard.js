@@ -1362,7 +1362,7 @@ if(watchAdsTaskItem) watchAdsTaskItem.addEventListener('click', async () => {
   closeTaskHub();
   watchAdsOverlay.classList.add('show');
   await refreshWatchAdsStatus();
-  renderWatchAdsStart();
+  startWatchAdSession();
 });
 if(watchAdsClose) watchAdsClose.addEventListener('click', () => {
   watchAdsOverlay.classList.remove('show');
@@ -1370,12 +1370,30 @@ if(watchAdsClose) watchAdsClose.addEventListener('click', () => {
 });
 watchAdsOverlay.addEventListener('click', e => { if(e.target.id === 'watchAdsOverlay'){ watchAdsOverlay.classList.remove('show'); clearInterval(watchAdsCountdownInterval); } });
 
-function renderWatchAdsStart(){
+async function startWatchAdSession(){
+  watchAdsBody.innerHTML = `<p style="color:var(--muted);text-align:center;padding:24px 0;">Naglo-load ng ad...</p>`;
+  try{
+    const res  = await fetch('/api/watch-ads/'+encodeURIComponent(currentUser)+'/start', {
+      method: 'POST', headers: authHeaders()
+    });
+    const data = await res.json();
+    if(!res.ok){
+      watchAdsBody.innerHTML = `<p style="color:var(--muted);text-align:center;padding:24px 0;">${escapeHtml(data.error || 'Hindi ma-start ang session.')}</p>`;
+      return;
+    }
+    watchAdsCurrentSession = data.sessionId;
+    renderWatchAdsPlaying(data.minSeconds);
+  } catch(e){
+    watchAdsBody.innerHTML = `<p style="color:var(--muted);text-align:center;padding:24px 0;">Hindi makonekta sa server.</p>`;
+  }
+}
+
+function renderWatchAdsPlaying(seconds){
   watchAdsBody.innerHTML = `
-    <div style="background:#0a0e22;border:1px solid var(--border);border-radius:14px;padding:16px;text-align:center;margin-bottom:16px;">
+    <div style="background:#0a0e22;border:1px solid rgba(77,166,255,0.3);border-radius:14px;padding:16px;text-align:center;margin-bottom:16px;">
       <div id="watchAdsBannerSlot-${Date.now()}"></div>
+      <div style="font-size:12px;color:var(--muted);margin-top:12px;">Ad is playing...</div>
     </div>
-    <button class="survey-submit-btn" id="watchAdsStartBtn">Start Watching</button>
   `;
   // I-reinject ang Adsterra native banner script kada open ng modal
   const bannerScript = document.createElement('script');
@@ -1387,59 +1405,13 @@ function renderWatchAdsStart(){
   const slot = watchAdsBody.querySelector('div[id^="watchAdsBannerSlot-"]');
   if(slot){ slot.appendChild(bannerContainer); slot.appendChild(bannerScript); }
 
-  const startBtn = document.getElementById('watchAdsStartBtn');
-  if(startBtn) startBtn.addEventListener('click', startWatchAdSession);
-}
-
-async function startWatchAdSession(){
-  const startBtn = document.getElementById('watchAdsStartBtn');
-  if(startBtn){ startBtn.disabled = true; startBtn.textContent = 'Starting...'; }
-  try{
-    const res  = await fetch('/api/watch-ads/'+encodeURIComponent(currentUser)+'/start', {
-      method: 'POST', headers: authHeaders()
-    });
-    const data = await res.json();
-    if(!res.ok){
-      alert(data.error || 'Hindi ma-start ang session.');
-      if(startBtn){ startBtn.disabled = false; startBtn.textContent = 'Start Watching'; }
-      return;
-    }
-    watchAdsCurrentSession = data.sessionId;
-    renderWatchAdsCountdown(data.minSeconds);
-  } catch(e){
-    alert('Hindi makonekta sa server.');
-    if(startBtn){ startBtn.disabled = false; startBtn.textContent = 'Start Watching'; }
-  }
-}
-
-function renderWatchAdsCountdown(seconds){
-  let remaining = seconds;
-  watchAdsBody.innerHTML = `
-    <div style="background:#0a0e22;border:1px solid rgba(77,166,255,0.3);border-radius:14px;padding:34px 16px;text-align:center;margin-bottom:16px;">
-      <div style="font-family:'Orbitron',sans-serif;font-weight:800;font-size:38px;color:var(--blue);margin-bottom:8px;" id="watchAdsCountdownNum">${remaining}</div>
-      <div style="font-size:12px;color:var(--muted);">Panoorin ang ad hanggang matapos ang countdown...</div>
-    </div>
-    <button class="survey-submit-btn" id="watchAdsClaimBtn" disabled>Please wait...</button>
-  `;
-  watchAdsCountdownInterval = setInterval(() => {
-    remaining -= 1;
-    const numEl = document.getElementById('watchAdsCountdownNum');
-    if(numEl) numEl.textContent = Math.max(remaining, 0);
-    if(remaining <= 0){
-      clearInterval(watchAdsCountdownInterval);
-      const claimBtn = document.getElementById('watchAdsClaimBtn');
-      if(claimBtn){
-        claimBtn.disabled = false;
-        claimBtn.textContent = 'Claim Reward';
-        claimBtn.addEventListener('click', claimWatchAdReward);
-      }
-    }
-  }, 1000);
+  clearInterval(watchAdsCountdownInterval);
+  watchAdsCountdownInterval = setTimeout(() => {
+    claimWatchAdReward();
+  }, seconds * 1000);
 }
 
 async function claimWatchAdReward(){
-  const claimBtn = document.getElementById('watchAdsClaimBtn');
-  if(claimBtn){ claimBtn.disabled = true; claimBtn.textContent = 'Claiming...'; }
   try{
     const res  = await fetch('/api/watch-ads/'+encodeURIComponent(currentUser)+'/claim', {
       method: 'POST',
@@ -1447,9 +1419,10 @@ async function claimWatchAdReward(){
       body: JSON.stringify({ sessionId: watchAdsCurrentSession })
     });
     const data = await res.json();
-    if(!res.ok){
-      alert(data.error || 'Hindi ma-claim ang reward.');
-      renderWatchAdsStart();
+if(!res.ok){
+      watchAdsBody.innerHTML = `<p style="color:var(--muted);text-align:center;padding:24px 0;">${escapeHtml(data.error || 'Hindi ma-claim ang reward.')}</p><button class="survey-submit-btn" id="watchAdsAgainBtn" style="margin-top:14px;">Subukan Ulit</button>`;
+      const retryBtn = document.getElementById('watchAdsAgainBtn');
+      if(retryBtn) retryBtn.addEventListener('click', startWatchAdSession);
       return;
     }
     watchAdsBody.innerHTML = `
@@ -1462,12 +1435,13 @@ async function claimWatchAdReward(){
     `;
     document.getElementById('watchAdsAgainBtn').addEventListener('click', async () => {
       await refreshWatchAdsStatus();
-      renderWatchAdsStart();
+      startWatchAdSession();
     });
     await refreshWatchAdsStatus();
     if(typeof loadWallet === 'function') loadWallet();
   } catch(e){
-    alert('Hindi makonekta sa server.');
-    renderWatchAdsStart();
+    watchAdsBody.innerHTML = `<p style="color:var(--muted);text-align:center;padding:24px 0;">Hindi makonekta sa server.</p><button class="survey-submit-btn" id="watchAdsAgainBtn" style="margin-top:14px;">Subukan Ulit</button>`;
+    const retryBtn = document.getElementById('watchAdsAgainBtn');
+    if(retryBtn) retryBtn.addEventListener('click', startWatchAdSession);
   }
 }
