@@ -181,6 +181,7 @@ const currentUser = localStorage.getItem('orbx_user');
           <span class="myorder-status ${o.status}">
             ${o.status === 'approved' ? '✅ Approved' : o.status}
           </span>
+          ${isApproved && !o._archived ? `<button class="download-receipt-btn" data-order-id="${o.id}" style="margin-top:8px;padding:7px 14px;border-radius:8px;border:1px solid rgba(77,166,255,0.4);background:rgba(77,166,255,0.08);color:var(--blue);font-size:11.5px;font-weight:700;cursor:pointer;">Download Receipt</button>` : ''}
           ${timerHtml}
 ${o.feedback ? `
             <div class="myorder-feedback">
@@ -217,6 +218,29 @@ ${o.feedback ? `
     el.innerHTML = '<p class="empty-state">Hindi makonekta sa server.</p>';
   }
 }
+
+  async function downloadReceipt(orderId){
+    try{
+      const res = await fetch('/api/orders/'+orderId+'/receipt', { headers: authHeaders() });
+      if(!res.ok){ alert('Hindi ma-download ang resibo.'); return; }
+      const blob = await res.blob();
+      const url  = window.URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href = url;
+      a.download = `ORBX-Receipt-${orderId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch(e){
+      alert('Hindi makonekta sa server.');
+    }
+  }
+
+  document.addEventListener('click', e => {
+    const btn = e.target.closest('.download-receipt-btn');
+    if(btn) downloadReceipt(btn.dataset.orderId);
+  });
 
   loadMyOrders();
 </script>

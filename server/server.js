@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const multer = require('multer');
+const PDFDocument = require('pdfkit');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const cors = require('cors');
@@ -1417,6 +1418,100 @@ app.delete('/api/orders/:id', requireAdmin, async (req, res) => {
 
   console.log(`[DELETE ORDER] Archived: ${order.username} - ${order.tier} (${order.status})`);
   res.json({ success: true });
+});
+
+// ── PDF Receipt Generator ────────────────────────────────────
+function drawReceiptHeader(doc, title){
+  doc.rect(0, 0, doc.page.width, 90).fill('#0a0e22');
+  doc.fillColor('#4da6ff').fontSize(22).font('Helvetica-Bold').text('ORB-X PH', 50, 28);
+  doc.fillColor('#a0a8c8').fontSize(9).font('Helvetica').text('Official Digital Receipt', 50, 55);
+  doc.fillColor('#ffffff').fontSize(14).font('Helvetica-Bold').text(title, 0, 32, { align: 'right', width: doc.page.width - 50 });
+  doc.fillColor('#000000');
+  doc.moveDown(4);
+}
+
+function drawReceiptRow(doc, label, value, y){
+  doc.fontSize(10).font('Helvetica').fillColor('#555555').text(label, 50, y);
+  doc.fontSize(11).font('Helvetica-Bold').fillColor('#111111').text(String(value), 250, y, { width: 300, align: 'left' });
+}
+
+function drawReceiptFooter(doc){
+  const y = doc.page.height - 80;
+  doc.moveTo(50, y).lineTo(doc.page.width - 50, y).strokeColor('#dddddd').stroke();
+  doc.fontSize(8).font('Helvetica').fillColor('#888888')
+    .text('Ito ay computer-generated na resibo mula sa ORB-X PH. Para sa mga katanungan, makipag-ugnayan sa Customer Service.', 50, y + 12, { width: doc.page.width - 100, align: 'center' });
+  doc.text(`Nabuo noong ${new Date().toLocaleString('en-PH')}`, 50, y + 28, { width: doc.page.width - 100, align: 'center' });
+}
+
+// CLIENT: I-download ang order receipt bilang PDF
+app.get('/api/orders/:id/receipt', requireUser, async (req, res) => {
+  const order = await findOrderById(req.params.id);
+  if (!order) return res.status(404).json({ error: 'Order not found.' });
+  if (order.username.toLowerCase() !== req.authUser.toLowerCase())
+    return res.status(403).json({ error: 'Bawal i-access ang resibo ng ibang user.' });
+  if (order.status !== 'approved')
+    return res.status(400).json({ error: 'Available lang ang resibo para sa mga approved na order.' });
+
+  const doc = new PDFDocument({ size: 'A4', margin: 50 });
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="ORBX-Receipt-${order.id}.pdf"`);
+  doc.pipe(res);
+
+  drawReceiptHeader(doc, 'PURCHASE RECEIPT');
+
+  let y = 150;
+  drawReceiptRow(doc, 'Receipt No.', order.id.toUpperCase(), y); y += 26;
+  drawReceiptRow(doc, 'Username', order.username, y); y += 26;
+  drawReceiptRow(doc, 'Package', order.tier, y); y += 26;
+  drawReceiptRow(doc, 'Amount', `₱${Number(order.price).toLocaleString('en-PH', {minimumFractionDigits:2})}`, y); y += 26;
+  drawReceiptRow(doc, 'Payment Method', order.method, y); y += 26;
+  drawReceiptRow(doc, 'Status', 'APPROVED', y); y += 26;
+  drawReceiptRow(doc, 'Order Date', new Date(order.createdAt).toLocaleString('en-PH'), y); y += 26;
+  drawReceiptRow(doc, 'Approved Date', order.approvedAt ? new Date(order.approvedAt).toLocaleString('en-PH') : '—', y); y += 40;
+
+  doc.rect(50, y, doc.page.width - 100, 1).fill('#eeeeee');
+  y += 20;
+  doc.fontSize(9).font('Helvetica-Oblique').fillColor('#7CFFB2')
+    .text('Ang order na ito ay kumpirmado at aktibo na sa iyong account.', 50, y);
+
+  drawReceiptFooter(doc);
+  doc.end();
+});
+
+// CLIENT: I-download ang withdrawal receipt bilang PDF
+app.get('/api/withdraw/:id/receipt', requireUser, async (req, res) => {
+  const w = await findWithdrawalById(req.params.id);
+  if (!w) return res.status(404).json({ error: 'Withdrawal not found.' });
+  if (w.username.toLowerCase() !== req.authUser.toLowerCase())
+    return res.status(403).json({ error: 'Bawal i-access ang resibo ng ibang user.' });
+  if (w.status !== 'approved' && w.status !== 'paid')
+    return res.status(400).json({ error: 'Available lang ang resibo para sa mga approved o paid na withdrawal.' });
+
+  const doc = new PDFDocument({ size: 'A4', margin: 50 });
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="ORBX-Withdrawal-${w.id}.pdf"`);
+  doc.pipe(res);
+
+  drawReceiptHeader(doc, 'WITHDRAWAL RECEIPT');
+
+  let y = 150;
+  drawReceiptRow(doc, 'Receipt No.', w.id.toUpperCase(), y); y += 26;
+  drawReceiptRow(doc, 'Username', w.username, y); y += 26;
+  drawReceiptRow(doc, 'Amount', `₱${Number(w.amount).toLocaleString('en-PH', {minimumFractionDigits:2})}`, y); y += 26;
+  drawReceiptRow(doc, 'Method', w.method, y); y += 26;
+  drawReceiptRow(doc, 'Account Name', w.accountName, y); y += 26;
+  drawReceiptRow(doc, 'Account Number', w.accountNumber, y); y += 26;
+  drawReceiptRow(doc, 'Status', w.status.toUpperCase(), y); y += 26;
+  drawReceiptRow(doc, 'Requested Date', new Date(w.createdAt).toLocaleString('en-PH'), y); y += 26;
+  drawReceiptRow(doc, 'Processed Date', w.processedAt ? new Date(w.processedAt).toLocaleString('en-PH') : '—', y); y += 40;
+
+  doc.rect(50, y, doc.page.width - 100, 1).fill('#eeeeee');
+  y += 20;
+  doc.fontSize(9).font('Helvetica-Oblique').fillColor(w.status === 'paid' ? '#7CFFB2' : '#4da6ff')
+    .text(w.status === 'paid' ? 'Ang withdrawal na ito ay naipadala na sa iyong account.' : 'Ang withdrawal na ito ay approved at kasalukuyang pinoproseso.', 50, y);
+
+  drawReceiptFooter(doc);
+  doc.end();
 });
 
 // ── Reusable order approval logic (ginagamit ng admin PATCH at ng PayMongo webhook) ──

@@ -131,6 +131,7 @@ const STATUS_LABELS = {
             ${w.processedAt ? `<br>Naproseso: ${timeAgo(w.processedAt)}` : ''}
             ${w.notes ? `<br>Note mo: ${escapeHtml(w.notes)}` : ''}
           </div>
+          ${(w.status === 'approved' || w.status === 'paid') ? `<button class="download-receipt-btn" data-withdraw-id="${w.id}" style="margin-top:8px;padding:7px 14px;border-radius:8px;border:1px solid rgba(77,166,255,0.4);background:rgba(77,166,255,0.08);color:var(--blue);font-size:11.5px;font-weight:700;cursor:pointer;">Download Receipt</button>` : ''}
           ${w.feedback ? `
             <div class="wh-feedback">
               <div>
@@ -144,6 +145,29 @@ const STATUS_LABELS = {
       el.innerHTML = '<p class="empty-state">Hindi makonekta sa server.</p>';
     }
   }
+
+  async function downloadWithdrawReceipt(withdrawId){
+    try{
+      const res = await fetch('/api/withdraw/'+withdrawId+'/receipt', { headers: authHeaders() });
+      if(!res.ok){ alert('Hindi ma-download ang resibo.'); return; }
+      const blob = await res.blob();
+      const url  = window.URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href = url;
+      a.download = `ORBX-Withdrawal-${withdrawId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch(e){
+      alert('Hindi makonekta sa server.');
+    }
+  }
+
+  document.addEventListener('click', e => {
+    const btn = e.target.closest('.download-receipt-btn');
+    if(btn) downloadWithdrawReceipt(btn.dataset.withdrawId);
+  });
 
   loadWithdrawHistory();
   setInterval(loadWithdrawHistory, 20000);
