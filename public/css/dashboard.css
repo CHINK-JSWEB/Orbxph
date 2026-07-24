@@ -381,12 +381,16 @@
   white-space: nowrap;
 }
 .wallet-stat-value {
-  font-family: 'Orbitron', sans-serif;
-  font-weight: 800;
-  font-size: clamp(16px,3.5vw,22px);
-  color: #7CFFB2;
-  letter-spacing: 0.5px;
-  line-height: 1;
+  font-family:'Orbitron',sans-serif;
+  font-weight:800;
+  font-size:clamp(12px,2.6vw,20px);
+  color:#7CFFB2;
+  letter-spacing:.3px;
+  line-height:1.1;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  max-width:100%;
 }
 .wallet-stat-value--withdrawn { color: var(--gold); }
 
