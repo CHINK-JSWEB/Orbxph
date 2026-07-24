@@ -1990,45 +1990,39 @@ app.post('/api/withdraw', submitLimiter, requireUser, async (req, res) => {
   const { username, amount, accountNumber, accountName, method, notes } = req.body || {};
 
   if (!username || !accountNumber || !accountName)
-    return res.status(400).json({ error: 'Lahat ng fields kailangan punan.' });
+    return res.status(400).json({ error: 'All fields are required.' });
 
   if (!isValidLength(accountNumber, 5, 50))
-    return res.status(400).json({ error: 'Invalid na account number.' });
+    return res.status(400).json({ error: 'Invalid account number.' });
   if (!isValidLength(accountName, 2, 100))
-    return res.status(400).json({ error: 'Invalid na account name.' });
+    return res.status(400).json({ error: 'Invalid account name.' });
   if (notes && notes.length > 500)
-    return res.status(400).json({ error: 'Masyadong mahaba ang notes. Max 500 characters.' });
+    return res.status(400).json({ error: 'Notes too long. Max 500 characters.' });
 
   const amt = parseFloat(amount);
   if (!amt || isNaN(amt) || amt <= 0)
-    return res.status(400).json({ error: 'Invalid na amount.' });
+    return res.status(400).json({ error: 'Invalid amount.' });
 
   const elig = await getWithdrawEligibility(username);
 
   if (elig.hasPendingWithdrawal)
     return res.status(409).json({
-      error: 'May pending ka pang withdrawal request. Hintayin muna ang proseso nito.'
+      error: 'You already have a pending withdrawal request. Please wait for it to be processed first.'
     });
 
   if (!elig.referralsMet)
     return res.status(403).json({
-      error: `Kailangan mo muna ng ${elig.invitesNeeded} verified referrals sa kasalukuyang cycle (${elig.invitesCount}/${elig.invitesNeeded}).`
+      error: `You need ${elig.invitesNeeded} verified referrals in the current cycle (${elig.invitesCount}/${elig.invitesNeeded}).`
     });
 
   if (!elig.balanceMet)
-    return res.status(403).json({ error: `Minimum balance ay ₱${MIN_WITHDRAWAL}.` });
+    return res.status(403).json({ error: `Minimum balance is ₱${MIN_WITHDRAWAL}.` });
 
   if (amt < MIN_WITHDRAWAL)
-    return res.status(400).json({ error: `Minimum withdrawal ay ₱${MIN_WITHDRAWAL}.` });
+    return res.status(400).json({ error: `Minimum withdrawal is ₱${MIN_WITHDRAWAL}.` });
 
   if (amt > elig.balance)
-    return res.status(400).json({ error: 'Hindi sapat ang iyong balance para sa amount na ito.' });
-
-  const remaining = parseFloat((elig.balance - amt).toFixed(2));
-  if (remaining > 0 && remaining < MIN_WITHDRAWAL)
-    return res.status(400).json({
-      error: `Ang matitirang balance ay dapat ₱${MIN_WITHDRAWAL} pataas, o i-withdraw na lahat ng ₱${elig.balance}.`
-    });
+    return res.status(400).json({ error: 'Your balance is insufficient for this amount.' });
 
   const id = Date.now().toString(36);
   const withdrawMethod = method || 'GCash';

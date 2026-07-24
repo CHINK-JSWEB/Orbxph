@@ -281,7 +281,8 @@ async function loadWallet(){
     const walletData = await walletRes.json();
     const incomeEl    = document.getElementById('walletIncome');
     const withdrawnEl = document.getElementById('walletWithdrawn');
-    if(incomeEl)    incomeEl.innerHTML    = peso(walletData.income);
+    const currentBalance = parseFloat((walletData.income - walletData.withdrawn).toFixed(2));
+    if(incomeEl)    incomeEl.innerHTML    = peso(currentBalance);
     if(withdrawnEl) withdrawnEl.innerHTML = peso(walletData.withdrawn);
     const dailyRes   = await fetch('/api/daily-rewards/'+encodeURIComponent(currentUser), { headers: authHeaders() });
     const dailyLogs  = await dailyRes.json();
@@ -318,14 +319,14 @@ async function openWithdrawModal(){
 
 async function renderWithdrawBody(){
   const body = document.getElementById('withdrawBody');
-  body.innerHTML = `<p style="color:var(--muted);text-align:center;padding:24px 0;">Naglo-load...</p>`;
+  body.innerHTML = `<p style="color:var(--muted);text-align:center;padding:24px 0;">Loading...</p>`;
   clearCycleTimer();
   let elig;
   try{
     const res = await fetch('/api/withdraw/eligibility/'+encodeURIComponent(currentUser), { headers: authHeaders() });
     elig = await res.json();
   } catch(e){
-    body.innerHTML = `<p style="color:var(--muted);text-align:center;padding:24px 0;">Hindi makonekta sa server.</p>`;
+    body.innerHTML = `<p style="color:var(--muted);text-align:center;padding:24px 0;">Unable to connect to the server.</p>`;
     return;
   }
 
@@ -345,8 +346,8 @@ async function renderWithdrawBody(){
       </div>
     </div>`;
 
-  if(elig.hasPendingWithdrawal){
-    html += `<div class="withdraw-locked-notice">${ICON_CLOCK}<div><div class="wln-title">May Pending Withdrawal Request</div><div class="wln-msg">Kasalukuyang nire-review ang iyong request. Karaniwang 1–2 hours ang processing.</div></div></div>`;
+if(elig.hasPendingWithdrawal){
+    html += `<div class="withdraw-locked-notice">${ICON_CLOCK}<div><div class="wln-title">Pending Withdrawal Request</div><div class="wln-msg">Your request is currently under review. Processing typically takes 1–2 hours.</div></div></div>`;
   } else if(elig.eligible){
     html += `
       <div style="display:flex;align-items:flex-start;gap:8px;font-size:11.5px;color:var(--muted);background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:10px;padding:10px 13px;line-height:1.6;margin-bottom:14px;">
@@ -403,16 +404,15 @@ async function renderWithdrawBody(){
 
   if(elig.eligible && !elig.hasPendingWithdrawal){
     const amountInput = document.getElementById('wdAmount');
-    amountInput.addEventListener('input', ()=>{
+amountInput.addEventListener('input', ()=>{
       const val = parseFloat(amountInput.value);
       const previewEl = document.getElementById('wdRemainingPreview');
       if(!previewEl) return;
       if(isNaN(val)||val<=0){ previewEl.textContent=`Available balance: ${peso(elig.balance)}`; previewEl.classList.remove('wd-hint--error'); return; }
       const remaining = parseFloat((elig.balance-val).toFixed(2));
-      if(val<MIN_WITHDRAWAL){ previewEl.textContent=`Minimum withdrawal ay ₱${MIN_WITHDRAWAL}.`; previewEl.classList.add('wd-hint--error'); }
-      else if(val>elig.balance){ previewEl.textContent=`Hindi sapat ang balance.`; previewEl.classList.add('wd-hint--error'); }
-      else if(remaining>0&&remaining<MIN_WITHDRAWAL){ previewEl.textContent=`Matitirang balance (${peso(remaining)}) ay dapat ₱${MIN_WITHDRAWAL} pataas.`; previewEl.classList.add('wd-hint--error'); }
-      else { previewEl.textContent=`Matitirang balance pagkatapos: ${peso(remaining)}`; previewEl.classList.remove('wd-hint--error'); }
+      if(val<MIN_WITHDRAWAL){ previewEl.textContent=`Minimum withdrawal is ₱${MIN_WITHDRAWAL}.`; previewEl.classList.add('wd-hint--error'); }
+      else if(val>elig.balance){ previewEl.textContent=`Insufficient balance.`; previewEl.classList.add('wd-hint--error'); }
+      else { previewEl.textContent=`Remaining balance after withdrawal: ${peso(remaining)}`; previewEl.classList.remove('wd-hint--error'); }
     });
 
     document.getElementById('wdSubmitBtn').addEventListener('click', async ()=>{
@@ -424,8 +424,8 @@ async function renderWithdrawBody(){
       const accountNumber = document.getElementById('wdAccountNumber').value.trim();
       const accountName   = document.getElementById('wdAccountName').value.trim();
       const notes         = document.getElementById('wdNotes').value.trim();
-      if(!amount||isNaN(amount)||amount<=0){ errEl.textContent='Maglagay ng valid na amount.'; errEl.style.display='block'; return; }
-      if(!accountNumber||!accountName){ errEl.textContent='Punan ang account number at account name.'; errEl.style.display='block'; return; }
+      if(!amount||isNaN(amount)||amount<=0){ errEl.textContent='Please enter a valid amount.'; errEl.style.display='block'; return; }
+      if(!accountNumber||!accountName){ errEl.textContent='Please fill in the account number and account name.'; errEl.style.display='block'; return; }
       submitBtn.disabled=true; submitBtn.textContent='Submitting...';
       try{
         const res  = await fetch('/api/withdraw',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({username:currentUser,amount,accountNumber,accountName,method,notes})});
@@ -433,7 +433,7 @@ async function renderWithdrawBody(){
         if(!res.ok){ errEl.textContent=data.error||'There was a problem submitting your request.'; errEl.style.display='block'; submitBtn.disabled=false; submitBtn.textContent='Submit Withdrawal Request'; return; }
         document.getElementById('withdrawBody').innerHTML=`<div class="order-success"><div class="order-success-badge">Submitted</div><h3>Withdrawal Requested</h3><p>Your request is now pending verification. Processing typically takes 1–2 hours. Thank you, ${currentUser}.</p></div>`;
         loadWallet();
-      } catch(err){ errEl.textContent='Hindi makonekta sa server.'; errEl.style.display='block'; submitBtn.disabled=false; submitBtn.textContent='Submit Withdrawal Request'; }
+} catch(err){ errEl.textContent='Unable to connect to the server.'; errEl.style.display='block'; submitBtn.disabled=false; submitBtn.textContent='Submit Withdrawal Request'; }
     });
   }
 }
