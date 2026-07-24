@@ -384,9 +384,9 @@
 .wallet-stat-value {
   font-family:'Orbitron',sans-serif;
   font-weight:800;
-  font-size:clamp(12px,2.6vw,20px);
+  font-size:clamp(9.5px,2.4vw,20px);
   color:#7CFFB2;
-  letter-spacing:.3px;
+  letter-spacing:0px;
   line-height:1.1;
   white-space:nowrap;
   overflow:hidden;
@@ -444,9 +444,10 @@
 }
 
 @media (max-width:480px) {
-  .wallet-stat { padding: 12px 14px; gap: 9px; }
-  .wallet-stat-icon { width: 30px; height: 30px; border-radius: 8px; }
-  .wallet-stat-icon svg { width: 13px; height: 13px; }
+  .wallet-stat { padding: 10px 10px; gap: 7px; }
+  .wallet-stat-icon { width: 26px; height: 26px; border-radius: 7px; }
+  .wallet-stat-icon svg { width: 11px; height: 11px; }
+  .wallet-stat-value { font-size: clamp(8.5px, 2.2vw, 18px); }
 }
 
 /* ══════════════════════════════════════════════════════════════
