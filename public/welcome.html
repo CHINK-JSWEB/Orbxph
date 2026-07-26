@@ -11,6 +11,89 @@
 <style>
 
 /* ═══════════════════════════════════════
+   HERO STATS BANNER
+   ═══════════════════════════════════════ */
+.hero-stats-banner {
+  position: relative;
+  background: linear-gradient(135deg, rgba(20,30,80,0.6), rgba(60,20,140,0.4));
+  border: 1px solid rgba(155,107,255,0.35);
+  border-radius: 22px;
+  padding: 22px 18px;
+  margin-bottom: clamp(16px,3.5vw,28px);
+  overflow: hidden;
+}
+.hero-stats-banner::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at 20% 20%, rgba(77,166,255,0.15), transparent 60%),
+              radial-gradient(ellipse at 80% 80%, rgba(155,107,255,0.15), transparent 60%);
+  pointer-events: none;
+  animation: heroGlowShift 8s ease-in-out infinite alternate;
+}
+@keyframes heroGlowShift {
+  from { opacity: 0.7; }
+  to   { opacity: 1; }
+}
+.hero-stats-eyebrow {
+  position: relative; z-index: 1;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: rgba(200,176,255,0.7);
+  margin-bottom: 4px;
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+}
+.hero-stats-live-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #7CFFB2;
+  box-shadow: 0 0 8px rgba(124,255,178,0.8);
+  animation: walletPulse 2s ease-in-out infinite;
+}
+.hero-stats-title {
+  position: relative; z-index: 1;
+  text-align: center;
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 800;
+  font-size: clamp(15px, 3.5vw, 19px);
+  color: #fff;
+  margin-bottom: 18px;
+}
+.hero-stats-row {
+  position: relative; z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.hero-stat-item {
+  text-align: center;
+  padding: 8px 4px;
+}
+.hero-stat-item:not(:last-child) {
+  border-right: 1px solid rgba(255,255,255,0.1);
+}
+.hero-stat-value {
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 800;
+  font-size: clamp(18px, 5vw, 28px);
+  background: linear-gradient(90deg, #ffffff, #c8b0ff);
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  line-height: 1.1;
+  margin-bottom: 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hero-stat-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.55);
+}
+
+/* ═══════════════════════════════════════
    TRUST STATS BAR
    ═══════════════════════════════════════ */
 .trust-bar {
@@ -56,6 +139,65 @@
   letter-spacing: 0.6px;
   text-transform: uppercase;
   color: var(--muted);
+}
+
+/* ═══════════════════════════════════════
+   MICRO-INTERACTIONS
+   ═══════════════════════════════════════ */
+.pc-order-btn,
+.wallet-withdraw-btn,
+.osb-view-btn,
+.ref-expand-btn,
+.copy-code-btn,
+.rcb-copy-btn,
+.pd-order-btn,
+.survey-submit-btn,
+.btn-login,
+.celebration-close-btn {
+  transition: transform 0.12s cubic-bezier(.4,0,.2,1), box-shadow 0.15s ease, background 0.2s ease !important;
+}
+.pc-order-btn:active,
+.wallet-withdraw-btn:active,
+.osb-view-btn:active,
+.ref-expand-btn:active,
+.copy-code-btn:active,
+.rcb-copy-btn:active,
+.pd-order-btn:active,
+.survey-submit-btn:active,
+.btn-login:active,
+.celebration-close-btn:active {
+  transform: scale(0.94) !important;
+}
+
+.product-card, .why-us-card, .task-hub-item, .osb-pill {
+  transition: transform 0.18s cubic-bezier(.4,0,.2,1);
+}
+.task-hub-item--available:active, .why-us-card:active {
+  transform: scale(0.97);
+}
+
+.icon-btn, .support-attach-btn, .rank-modal-close, .modal-close {
+  transition: transform 0.12s ease, background 0.15s ease;
+}
+.icon-btn:active, .support-attach-btn:active, .modal-close:active {
+  transform: scale(0.88);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pc-order-btn, .wallet-withdraw-btn, .osb-view-btn, .ref-expand-btn,
+  .copy-code-btn, .rcb-copy-btn, .pd-order-btn, .survey-submit-btn,
+  .btn-login, .celebration-close-btn, .product-card, .why-us-card,
+  .task-hub-item, .icon-btn, .support-attach-btn, .modal-close {
+    transition: none !important;
+  }
+  .pc-order-btn:active, .wallet-withdraw-btn:active, .osb-view-btn:active,
+  .ref-expand-btn:active, .copy-code-btn:active, .rcb-copy-btn:active,
+  .pd-order-btn:active, .survey-submit-btn:active, .btn-login:active,
+  .celebration-close-btn:active, .task-hub-item--available:active,
+  .why-us-card:active, .icon-btn:active, .support-attach-btn:active,
+  .modal-close:active {
+    transform: none !important;
+  }
 }
 
 /* ═══════════════════════════════════════
@@ -1643,7 +1785,30 @@
 
 <main class="dash-main">
 
-<!-- TRUST STATS BAR -->
+<!-- HERO STATS BANNER -->
+    <div class="hero-stats-banner">
+      <div class="hero-stats-eyebrow">
+        <span class="hero-stats-live-dot"></span>
+        LIVE PLATFORM STATS
+      </div>
+      <div class="hero-stats-title">Join a Growing Community</div>
+      <div class="hero-stats-row">
+        <div class="hero-stat-item">
+          <div class="hero-stat-value" id="heroUsers">—</div>
+          <div class="hero-stat-label">Members</div>
+        </div>
+        <div class="hero-stat-item">
+          <div class="hero-stat-value" id="heroPaidOut">—</div>
+          <div class="hero-stat-label">Paid Out</div>
+        </div>
+        <div class="hero-stat-item">
+          <div class="hero-stat-value" id="heroOrders">—</div>
+          <div class="hero-stat-label">Orders Fulfilled</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TRUST STATS BAR -->
     <div class="trust-bar" id="trustBar">
       <div class="trust-stat">
         <div class="trust-stat-value" id="trustUsers">—</div>

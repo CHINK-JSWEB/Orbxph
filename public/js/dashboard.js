@@ -1649,18 +1649,41 @@ if(celebrationOverlayEl) celebrationOverlayEl.addEventListener('click', e => {
   if(e.target.id === 'celebrationOverlay') closeCelebration();
 });
 // ══════════════════════════════════════════════════════════════
-//  TRUST STATS BAR (public platform stats)
+//  TRUST STATS BAR + HERO STATS (public platform stats)
 // ══════════════════════════════════════════════════════════════
+function animateCountUp(el, targetValue, formatFn){
+  if(!el) return;
+  const duration = 1200;
+  const startTime = performance.now();
+  function tick(now){
+    const progress = Math.min((now - startTime) / duration, 1);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    const current = Math.round(targetValue * eased);
+    el.innerHTML = formatFn(current);
+    if(progress < 1) requestAnimationFrame(tick);
+    else el.innerHTML = formatFn(targetValue);
+  }
+  requestAnimationFrame(tick);
+}
+
 async function loadTrustStats(){
   try{
     const res  = await fetch('/api/public-stats');
     const data = await res.json();
+
     const usersEl  = document.getElementById('trustUsers');
     const paidEl   = document.getElementById('trustPaidOut');
     const ordersEl = document.getElementById('trustOrders');
     if(usersEl)  usersEl.textContent  = data.totalUsers.toLocaleString() + '+';
     if(paidEl)   paidEl.innerHTML     = '&#8369;' + Number(data.totalPaidOut).toLocaleString('en-PH', {maximumFractionDigits:0});
     if(ordersEl) ordersEl.textContent = data.totalApprovedOrders.toLocaleString() + '+';
+
+    const heroUsersEl  = document.getElementById('heroUsers');
+    const heroPaidEl   = document.getElementById('heroPaidOut');
+    const heroOrdersEl = document.getElementById('heroOrders');
+    animateCountUp(heroUsersEl, data.totalUsers, v => v.toLocaleString() + '+');
+    animateCountUp(heroPaidEl, Math.round(data.totalPaidOut), v => '&#8369;' + v.toLocaleString('en-PH'));
+    animateCountUp(heroOrdersEl, data.totalApprovedOrders, v => v.toLocaleString() + '+');
   } catch(e){}
 }
 loadTrustStats();
