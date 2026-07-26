@@ -1648,3 +1648,19 @@ const celebrationOverlayEl = document.getElementById('celebrationOverlay');
 if(celebrationOverlayEl) celebrationOverlayEl.addEventListener('click', e => {
   if(e.target.id === 'celebrationOverlay') closeCelebration();
 });
+// ══════════════════════════════════════════════════════════════
+//  TRUST STATS BAR (public platform stats)
+// ══════════════════════════════════════════════════════════════
+async function loadTrustStats(){
+  try{
+    const res  = await fetch('/api/public-stats');
+    const data = await res.json();
+    const usersEl  = document.getElementById('trustUsers');
+    const paidEl   = document.getElementById('trustPaidOut');
+    const ordersEl = document.getElementById('trustOrders');
+    if(usersEl)  usersEl.textContent  = data.totalUsers.toLocaleString() + '+';
+    if(paidEl)   paidEl.innerHTML     = '&#8369;' + Number(data.totalPaidOut).toLocaleString('en-PH', {maximumFractionDigits:0});
+    if(ordersEl) ordersEl.textContent = data.totalApprovedOrders.toLocaleString() + '+';
+  } catch(e){}
+}
+loadTrustStats();

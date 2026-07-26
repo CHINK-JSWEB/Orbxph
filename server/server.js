@@ -770,6 +770,29 @@ app.get('/api/config', (req, res) => {
   res.json({ recaptchaSiteKey: process.env.RECAPTCHA_SITE_KEY || '' });
 });
 
+// ── Public platform stats (aggregate lang, walang sensitive info) ──
+app.get('/api/public-stats', async (req, res) => {
+  try{
+    const userCountRes = await pool.query('SELECT COUNT(*) FROM users');
+    const totalUsers = parseInt(userCountRes.rows[0].count, 10);
+
+    const paidOutRes = await pool.query(`SELECT COALESCE(SUM(amount), 0) as total FROM withdrawals WHERE status = 'paid'`);
+    const totalPaidOut = parseFloat(paidOutRes.rows[0].total);
+
+    const approvedOrdersRes = await pool.query(`SELECT COUNT(*) FROM orders WHERE status = 'approved'`);
+    const totalApprovedOrders = parseInt(approvedOrdersRes.rows[0].count, 10);
+
+    res.json({
+      totalUsers,
+      totalPaidOut,
+      totalApprovedOrders,
+    });
+  } catch(err){
+    console.error('[PUBLIC STATS ERROR]', err);
+    res.json({ totalUsers: 0, totalPaidOut: 0, totalApprovedOrders: 0 });
+  }
+});
+
 // ── Admin auth ────────────────────────────────────────────────
 app.get('/api/admin/exists', requireGateToken, async (req, res) => {
   const count = await getAdminCount();
