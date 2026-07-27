@@ -22,6 +22,7 @@ document.getElementById('footerYear').textContent = new Date().getFullYear();
 
 // ── SVG Icons ─────────────────────────────────────────────────
 const ICON_CHECK = `<svg class="si" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="9" stroke="currentColor" stroke-width="1.5"/><path d="M6.5 10.5l2.5 2.5 4.5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const LB_MEDAL_SVG = `<svg viewBox="0 0 20 20" fill="none" width="17" height="17"><circle cx="10" cy="10" r="7.5" stroke="currentColor" stroke-width="1.6"/><path d="M10 6.5l1.1 2.3 2.5.35-1.8 1.75.4 2.5-2.2-1.15-2.2 1.15.4-2.5-1.8-1.75 2.5-.35L10 6.5z" fill="currentColor"/></svg>`;
 const ICON_WARN  = `<svg class="si" viewBox="0 0 20 20" fill="none"><path d="M10 3L17.5 16H2.5L10 3Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 9v3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="10" cy="14.5" r="0.8" fill="currentColor"/></svg>`;
 const ICON_CLOCK = `<svg class="si" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.5"/><path d="M10 6v4l2.5 2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const ICON_GIFT  = `<svg class="si" viewBox="0 0 20 20" fill="none"><rect x="2" y="8" width="16" height="10" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M2 11h16M10 8v10" stroke="currentColor" stroke-width="1.5"/><path d="M10 8C10 8 7 8 7 5.5a3 3 0 016 0C13 8 10 8 10 8z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
@@ -1230,9 +1231,9 @@ function renderLeaderboard(data){
     const isYou = entry.username.toLowerCase() === currentUser.toLowerCase();
     let posClass = 'lb-position';
     let posLabel = '#' + entry.position;
-    if(entry.position === 1){ posClass += ' lb-position--top1'; posLabel = '🥇'; }
-    else if(entry.position === 2){ posClass += ' lb-position--top2'; posLabel = '🥈'; }
-    else if(entry.position === 3){ posClass += ' lb-position--top3'; posLabel = '🥉'; }
+    if(entry.position === 1){ posClass += ' lb-position--top1'; posLabel = LB_MEDAL_SVG; }
+    else if(entry.position === 2){ posClass += ' lb-position--top2'; posLabel = LB_MEDAL_SVG; }
+    else if(entry.position === 3){ posClass += ' lb-position--top3'; posLabel = LB_MEDAL_SVG; }
 
     html += `
       <div class="lb-item ${isYou ? 'lb-item--you' : ''}">
@@ -1680,3 +1681,36 @@ async function loadTrustStats(){
   } catch(e){}
 }
 loadTrustStats();
+// ══════════════════════════════════════════════════════════════
+//  LEADERBOARD PREVIEW (top 3 sa dashboard)
+// ══════════════════════════════════════════════════════════════
+async function loadLeaderboardPreview(){
+  const listEl = document.getElementById('lbPreviewList');
+  if(!listEl) return;
+  try{
+    const res  = await fetch('/api/leaderboard?username='+encodeURIComponent(currentUser));
+    const data = await res.json();
+    const top3 = (data.top || []).slice(0, 3);
+    if(!top3.length){
+      listEl.innerHTML = '<div class="lb-preview-empty">No referral activity yet. Be the first!</div>';
+      return;
+    }
+    const medalColors = ['#ffd966', '#c0c8d8', '#d9924a'];
+    listEl.innerHTML = top3.map((entry, idx) => `
+      <div class="lb-preview-item">
+        <span class="lb-preview-rank" style="color:${medalColors[idx]}">${LB_MEDAL_SVG}</span>
+        <span class="lb-preview-username">${escapeHtml(entry.username)}</span>
+        <span class="lb-preview-earned">${peso(entry.totalEarned)}</span>
+      </div>
+    `).join('');
+  } catch(e){
+    listEl.innerHTML = '<div class="lb-preview-empty">Unable to load leaderboard.</div>';
+  }
+}
+loadLeaderboardPreview();
+setInterval(loadLeaderboardPreview, 60000);
+
+const lbPreviewViewBtn = document.getElementById('lbPreviewViewBtn');
+if(lbPreviewViewBtn) lbPreviewViewBtn.addEventListener('click', () => {
+  if(typeof openLeaderboard === 'function') openLeaderboard();
+});

@@ -142,6 +142,48 @@
 }
 
 /* ═══════════════════════════════════════
+   LEADERBOARD PREVIEW CARD
+   ═══════════════════════════════════════ */
+.lb-preview-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 18px 18px 16px;
+  margin-bottom: clamp(16px,3.5vw,28px);
+}
+.lb-preview-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px;
+}
+.lb-preview-title {
+  display: flex; align-items: center; gap: 8px;
+  font-family: 'Orbitron', sans-serif; font-weight: 800; font-size: 13px;
+  color: var(--text);
+}
+.lb-preview-title svg { color: var(--gold); }
+.lb-preview-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.lb-preview-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px; border-radius: 12px;
+  background: rgba(0,0,0,0.15); border: 1px solid var(--border);
+}
+.lb-preview-rank {
+  width: 28px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.lb-preview-username { flex: 1; min-width: 0; font-size: 13px; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lb-preview-earned { font-family: 'Orbitron', sans-serif; font-weight: 800; font-size: 12.5px; color: #7CFFB2; flex-shrink: 0; }
+.lb-preview-view-btn {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  width: 100%; padding: 10px; border-radius: 10px;
+  border: 1px solid rgba(255,200,87,0.35); background: rgba(255,200,87,0.07);
+  color: var(--gold); font-family: 'Inter', sans-serif; font-size: 12.5px; font-weight: 700;
+  cursor: pointer; transition: background 0.2s;
+}
+.lb-preview-view-btn:hover { background: rgba(255,200,87,0.15); }
+.lb-preview-empty { text-align: center; padding: 20px 10px; color: var(--muted); font-size: 12px; }
+
+/* ═══════════════════════════════════════
    MICRO-INTERACTIONS
    ═══════════════════════════════════════ */
 .pc-order-btn,
@@ -2150,7 +2192,23 @@
       <div id="container-02f82c80a8146774c06eab87b9477b88"></div>
     </div>
 
-<!-- WHY CHOOSE US -->
+<!-- LEADERBOARD PREVIEW -->
+    <div class="lb-preview-card">
+      <div class="lb-preview-head">
+        <div class="lb-preview-title">
+          <svg viewBox="0 0 20 20" fill="none" width="16" height="16"><path d="M4 16V10M10 16V4M16 16v-7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Top Referrers
+        </div>
+      </div>
+      <div class="lb-preview-list" id="lbPreviewList">
+        <div class="lb-preview-empty">Loading...</div>
+      </div>
+      <button class="lb-preview-view-btn" id="lbPreviewViewBtn">
+        View Full Leaderboard
+      </button>
+    </div>
+
+    <!-- WHY CHOOSE US -->
     <div class="why-us-section">
       <div class="why-us-title">Why Choose ORB-X PH</div>
       <div class="why-us-subtitle">Built with transparency, security, and our members in mind.</div>

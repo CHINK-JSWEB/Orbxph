@@ -747,6 +747,14 @@ html, body {
 .pc-order-btn:hover { transform: translateY(-2px); box-shadow: 0 16px 34px -8px rgba(155,107,255,0.6); }
 .pc-order-btn:active { transform: translateY(0) scale(.97); }
 
+.product-card:has(.pc-badge) .pc-order-btn {
+  animation: pcBtnShine 4s linear infinite, ctaPulseGlow 2.2s ease-in-out infinite;
+}
+@keyframes ctaPulseGlow {
+  0%,100% { box-shadow: 0 10px 26px -8px rgba(77,166,255,0.5); }
+  50%      { box-shadow: 0 14px 36px -6px rgba(255,200,87,0.55); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .product-card, .product-card::before, .pc-image, .pc-badge { animation: none !important; }
   .product-card { opacity: 1; transform: none; }
