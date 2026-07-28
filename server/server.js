@@ -554,6 +554,98 @@ async function fetchAndCacheTodaysQuestions() {
     return existing.rows;
   }
 }
+// ── Daily Login Streak (PostgreSQL) ────────────────────────────
+const STREAK_REWARDS = [5, 8, 12, 16, 20, 25, 35]; // Day 1 hanggang Day 7, cycle uli pagkatapos
+
+async function ensureStreakTable() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS login_streaks (
+      username TEXT PRIMARY KEY,
+      current_streak INTEGER NOT NULL DEFAULT 0,
+      last_claim_date DATE,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+}
+ensureStreakTable().catch(err => console.error('[STREAK TABLE INIT ERROR]', err));
+
+// CLIENT: makuha ang kasalukuyang streak status
+app.get('/api/streak/:username', requireUser, async (req, res) => {
+  const username = req.params.username;
+  const r = await pool.query('SELECT * FROM login_streaks WHERE LOWER(username) = LOWER($1)', [username]);
+  const row = r.rows[0];
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  let currentStreak = 0;
+  let canClaim = true;
+  let lastClaimDate = null;
+
+  if (row) {
+    lastClaimDate = row.last_claim_date ? new Date(row.last_claim_date).toISOString().slice(0, 10) : null;
+    currentStreak = row.current_streak;
+    if (lastClaimDate === todayStr) {
+      canClaim = false; // na-claim na ngayong araw
+    }
+  }
+
+  const nextDayInCycle = canClaim ? (currentStreak % STREAK_REWARDS.length) + 1 : (currentStreak % STREAK_REWARDS.length) || STREAK_REWARDS.length;
+  const nextReward = STREAK_REWARDS[(nextDayInCycle - 1) % STREAK_REWARDS.length];
+
+  res.json({
+    currentStreak,
+    canClaim,
+    lastClaimDate,
+    nextDayInCycle,
+    nextReward,
+    rewardSchedule: STREAK_REWARDS,
+  });
+});
+
+// CLIENT: i-claim ang daily login bonus
+app.post('/api/streak/:username/claim', requireUser, async (req, res) => {
+  const username = req.params.username;
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  const r = await pool.query('SELECT * FROM login_streaks WHERE LOWER(username) = LOWER($1)', [username]);
+  const row = r.rows[0];
+
+  let newStreak = 1;
+
+  if (row) {
+    const lastClaimDate = row.last_claim_date ? new Date(row.last_claim_date).toISOString().slice(0, 10) : null;
+    if (lastClaimDate === todayStr) {
+      return res.status(409).json({ error: 'Na-claim mo na ang bonus ngayong araw.' });
+    }
+    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    if (lastClaimDate === yesterday) {
+      newStreak = row.current_streak + 1; // tuloy-tuloy ang streak
+    } else {
+      newStreak = 1; // nagputol ang streak, magsisimula ulit
+    }
+  }
+
+  const dayInCycle = ((newStreak - 1) % STREAK_REWARDS.length) + 1;
+  const reward = STREAK_REWARDS[dayInCycle - 1];
+
+  await pool.query(
+    `INSERT INTO login_streaks (username, current_streak, last_claim_date, updated_at)
+     VALUES ($1, $2, $3, NOW())
+     ON CONFLICT (username) DO UPDATE SET current_streak = $2, last_claim_date = $3, updated_at = NOW()`,
+    [username, newStreak, todayStr]
+  );
+
+  await creditWallet(username, reward, `Daily login streak - Day ${dayInCycle}`, 'login_streak_reward');
+
+  await createNotification(
+    username,
+    'daily_reward',
+    'Daily Login Bonus Claimed',
+    `You claimed your Day ${dayInCycle} login bonus of ₱${reward.toLocaleString()}. Current streak: ${newStreak} day(s).`
+  );
+
+  res.json({ success: true, currentStreak: newStreak, reward, dayInCycle });
+});
+
 // ── Watch & Earn Ads (PostgreSQL) ──────────────────────────────
 async function ensureWatchAdsTable() {
   await pool.query(`

@@ -1714,3 +1714,72 @@ const lbPreviewViewBtn = document.getElementById('lbPreviewViewBtn');
 if(lbPreviewViewBtn) lbPreviewViewBtn.addEventListener('click', () => {
   if(typeof openLeaderboard === 'function') openLeaderboard();
 });
+// ══════════════════════════════════════════════════════════════
+//  DAILY LOGIN STREAK
+// ══════════════════════════════════════════════════════════════
+async function loadStreakWidget(){
+  const daysRow    = document.getElementById('streakDaysRow');
+  const countBadge = document.getElementById('streakCountBadge');
+  const claimBtn   = document.getElementById('streakClaimBtn');
+  if(!daysRow || !claimBtn) return;
+
+  try{
+    const res  = await fetch('/api/streak/'+encodeURIComponent(currentUser), { headers: authHeaders() });
+    const data = await res.json();
+
+    countBadge.textContent = `${data.currentStreak} Day${data.currentStreak === 1 ? '' : 's'}`;
+
+    daysRow.innerHTML = data.rewardSchedule.map((reward, idx) => {
+      const dayNum = idx + 1;
+      const isDone  = dayNum < data.nextDayInCycle || (!data.canClaim && dayNum <= data.nextDayInCycle);
+      const isToday = dayNum === data.nextDayInCycle && data.canClaim;
+      let cls = 'streak-day';
+      if(isDone && !isToday) cls += ' streak-day--done';
+      if(isToday) cls += ' streak-day--today';
+      return `
+        <div class="${cls}">
+          <span>Day ${dayNum}</span>
+          <span class="streak-day-num">&#8369;${reward}</span>
+        </div>`;
+    }).join('');
+
+    if(data.canClaim){
+      claimBtn.disabled = false;
+      claimBtn.textContent = `Claim Day ${data.nextDayInCycle} Bonus (+${peso(data.nextReward).replace('&#8369;','₱')})`;
+    } else {
+      claimBtn.disabled = true;
+      claimBtn.textContent = 'Already Claimed Today — Come Back Tomorrow';
+    }
+  } catch(e){
+    claimBtn.disabled = true;
+    claimBtn.textContent = 'Unable to load streak.';
+  }
+}
+
+async function claimStreakBonus(){
+  const claimBtn = document.getElementById('streakClaimBtn');
+  if(!claimBtn || claimBtn.disabled) return;
+  claimBtn.disabled = true;
+  claimBtn.textContent = 'Claiming...';
+  try{
+    const res  = await fetch('/api/streak/'+encodeURIComponent(currentUser)+'/claim', {
+      method: 'POST', headers: authHeaders()
+    });
+    const data = await res.json();
+    if(!res.ok){
+      alert(data.error || 'Hindi ma-claim ang bonus.');
+      await loadStreakWidget();
+      return;
+    }
+    await loadStreakWidget();
+    if(typeof loadWallet === 'function') loadWallet();
+  } catch(e){
+    alert('Unable to connect to the server.');
+    await loadStreakWidget();
+  }
+}
+
+const streakClaimBtnEl = document.getElementById('streakClaimBtn');
+if(streakClaimBtnEl) streakClaimBtnEl.addEventListener('click', claimStreakBonus);
+
+loadStreakWidget();

@@ -142,6 +142,68 @@
 }
 
 /* ═══════════════════════════════════════
+   DAILY LOGIN STREAK
+   ═══════════════════════════════════════ */
+.streak-card {
+  background: linear-gradient(135deg, rgba(255,150,50,0.1), rgba(155,107,255,0.08));
+  border: 1px solid rgba(255,180,60,0.3);
+  border-radius: 18px;
+  padding: 16px 18px;
+  margin-bottom: clamp(16px,3.5vw,28px);
+  position: relative;
+  overflow: hidden;
+}
+.streak-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px;
+}
+.streak-title {
+  display: flex; align-items: center; gap: 8px;
+  font-family: 'Orbitron', sans-serif; font-weight: 800; font-size: 13px;
+  color: var(--text);
+}
+.streak-title svg { color: #ffb347; }
+.streak-count-badge {
+  font-family: 'Orbitron', sans-serif; font-weight: 800; font-size: 12px;
+  color: #ffb347; background: rgba(255,180,60,0.15);
+  border: 1px solid rgba(255,180,60,0.4); border-radius: 20px;
+  padding: 3px 12px;
+}
+.streak-days-row {
+  display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px;
+  margin-bottom: 14px;
+}
+.streak-day {
+  aspect-ratio: 1; border-radius: 10px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.2); border: 1px solid var(--border);
+  font-size: 9px; font-weight: 700; color: var(--muted);
+  gap: 2px;
+}
+.streak-day-num { font-family: 'Orbitron', sans-serif; font-weight: 800; font-size: 11px; }
+.streak-day--done {
+  background: rgba(124,255,178,0.12); border-color: rgba(124,255,178,0.4); color: #7CFFB2;
+}
+.streak-day--today {
+  background: rgba(255,180,60,0.15); border-color: rgba(255,180,60,0.6); color: #ffb347;
+  animation: streakTodayPulse 1.8s ease-in-out infinite;
+}
+@keyframes streakTodayPulse {
+  0%,100% { box-shadow: 0 0 0 rgba(255,180,60,0.4); }
+  50%      { box-shadow: 0 0 14px rgba(255,180,60,0.5); }
+}
+.streak-claim-btn {
+  width: 100%; padding: 12px; border: none; border-radius: 12px;
+  background: linear-gradient(90deg, #ff9800, #ffc857);
+  color: #1a1200; font-family: 'Inter', sans-serif; font-weight: 800; font-size: 13.5px;
+  cursor: pointer; transition: transform 0.15s;
+}
+.streak-claim-btn:hover:not(:disabled) { transform: translateY(-2px); }
+.streak-claim-btn:disabled {
+  background: rgba(255,255,255,0.06); color: var(--muted); cursor: not-allowed;
+}
+
+/* ═══════════════════════════════════════
    LEADERBOARD PREVIEW CARD
    ═══════════════════════════════════════ */
 .lb-preview-card {
@@ -2192,7 +2254,20 @@
       <div id="container-02f82c80a8146774c06eab87b9477b88"></div>
     </div>
 
-<!-- LEADERBOARD PREVIEW -->
+<!-- DAILY LOGIN STREAK -->
+    <div class="streak-card">
+      <div class="streak-head">
+        <div class="streak-title">
+          <svg viewBox="0 0 20 20" fill="none" width="16" height="16"><path d="M10 2c0 3-3 4-3 7a3 3 0 006 0c0-1-.5-1.8-1-2.5.8.3 2 1.5 2 4a4 4 0 01-8 0c0-3.5 2.5-5 4-8.5z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+          Daily Login Streak
+        </div>
+        <span class="streak-count-badge" id="streakCountBadge">0 Days</span>
+      </div>
+      <div class="streak-days-row" id="streakDaysRow"></div>
+      <button class="streak-claim-btn" id="streakClaimBtn" disabled>Loading...</button>
+    </div>
+
+    <!-- LEADERBOARD PREVIEW -->
     <div class="lb-preview-card">
       <div class="lb-preview-head">
         <div class="lb-preview-title">
