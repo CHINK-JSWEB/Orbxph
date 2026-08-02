@@ -555,7 +555,7 @@ async function fetchAndCacheTodaysQuestions() {
   }
 }
 // ── Daily Login Streak (PostgreSQL) ────────────────────────────
-const STREAK_REWARDS = [5, 8, 12, 16, 20, 25, 35]; // Day 1 hanggang Day 7, cycle uli pagkatapos
+const STREAK_REWARDS = [1, 2, 3, 4, 5, 7, 10]; // Day 1 hanggang Day 7, cycle uli pagkatapos
 
 async function ensureStreakTable() {
   await pool.query(`
